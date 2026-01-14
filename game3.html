@@ -1,0 +1,1640 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Block Blast - 積木消除遊戲</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a237e 0%, #283593 50%, #3949ab 100%);
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+        
+        .container {
+            max-width: 1200px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #ffcc00;
+            font-size: 3.2rem;
+            margin-bottom: 5px;
+            text-shadow: 3px 3px 0 #ff5722, 6px 6px 0 rgba(0, 0, 0, 0.2);
+            letter-spacing: 2px;
+        }
+        
+        .subtitle {
+            color: #bbdefb;
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+        }
+        
+        .game-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 30px;
+            width: 100%;
+            margin-bottom: 30px;
+        }
+        
+        .left-panel {
+            flex: 1;
+            min-width: 300px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .right-panel {
+            flex: 1;
+            min-width: 300px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .game-board-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .game-board {
+            position: relative;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border: 3px solid #ffcc00;
+        }
+        
+        #gameBoard {
+            background-color: rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+            display: block;
+        }
+        
+        .next-blocks-container {
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border: 3px solid #4caf50;
+            margin-top: 20px;
+        }
+        
+        .next-blocks-title {
+            color: #4caf50;
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .next-blocks {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            min-height: 150px;
+        }
+        
+        .next-block {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            padding: 10px;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .next-block:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-5px);
+        }
+        
+        .next-block canvas {
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 5px;
+        }
+        
+        .block-label {
+            margin-top: 5px;
+            color: #bbdefb;
+            font-size: 0.9rem;
+        }
+        
+        .stats-container {
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border: 3px solid #ff5722;
+        }
+        
+        .stats-title {
+            color: #ff5722;
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 15px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+        
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #ffcc00;
+            text-shadow: 0 0 10px rgba(255, 204, 0, 0.5);
+        }
+        
+        .stat-label {
+            color: #bbdefb;
+            font-size: 1rem;
+            margin-top: 5px;
+            text-align: center;
+        }
+        
+        .combo-display {
+            grid-column: span 2;
+            background-color: rgba(156, 39, 176, 0.3);
+            border: 2px solid #9c27b0;
+        }
+        
+        #comboValue {
+            color: #e91e63;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        
+        .controls-container {
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border: 3px solid #2196f3;
+        }
+        
+        .controls-title {
+            color: #2196f3;
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .game-mode-selector {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .mode-btn {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border: none;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            letter-spacing: 1px;
+            text-align: center;
+        }
+        
+        .mode-btn:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-3px);
+        }
+        
+        .mode-btn.active {
+            background-color: #2196f3;
+            box-shadow: 0 5px 15px rgba(33, 150, 243, 0.4);
+        }
+        
+        .game-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .control-btn {
+            background-color: #ff5722;
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            letter-spacing: 1px;
+            box-shadow: 0 5px 0 #d84315;
+        }
+        
+        .control-btn:hover {
+            background-color: #f4511e;
+            transform: translateY(-3px);
+            box-shadow: 0 8px 0 #d84315;
+        }
+        
+        .control-btn:active {
+            transform: translateY(2px);
+            box-shadow: 0 3px 0 #d84315;
+        }
+        
+        .control-btn#hintBtn {
+            background-color: #9c27b0;
+            box-shadow: 0 5px 0 #7b1fa2;
+        }
+        
+        .control-btn#hintBtn:hover {
+            background-color: #8e24aa;
+            box-shadow: 0 8px 0 #7b1fa2;
+        }
+        
+        .instructions {
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border: 3px solid #4caf50;
+        }
+        
+        .instructions-title {
+            color: #4caf50;
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .instructions-list {
+            list-style-type: none;
+        }
+        
+        .instructions-list li {
+            margin-bottom: 12px;
+            padding-left: 20px;
+            position: relative;
+            color: #bbdefb;
+            font-size: 1.1rem;
+        }
+        
+        .instructions-list li:before {
+            content: "•";
+            color: #4caf50;
+            font-size: 1.5rem;
+            position: absolute;
+            left: 0;
+            top: -3px;
+        }
+        
+        .game-status {
+            margin-top: 15px;
+            font-size: 1.5rem;
+            color: #ffcc00;
+            text-align: center;
+            min-height: 40px;
+            font-weight: bold;
+            width: 100%;
+            max-width: 800px;
+            padding: 15px;
+            border-radius: 10px;
+            background-color: rgba(0, 0, 0, 0.3);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            border: 2px solid #ffcc00;
+        }
+        
+        .level-info {
+            margin-top: 10px;
+            font-size: 1.2rem;
+            color: #bbdefb;
+            text-align: center;
+        }
+        
+        footer {
+            margin-top: 30px;
+            color: #bbdefb;
+            text-align: center;
+            font-size: 1rem;
+            width: 100%;
+            padding-top: 20px;
+            border-top: 2px solid rgba(187, 222, 251, 0.2);
+            font-weight: bold;
+        }
+        
+        @media (max-width: 768px) {
+            .game-container {
+                flex-direction: column;
+            }
+            
+            h1 {
+                font-size: 2.5rem;
+            }
+            
+            .stats {
+                grid-template-columns: 1fr;
+            }
+            
+            .combo-display {
+                grid-column: span 1;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .stat-value {
+                font-size: 2rem;
+            }
+            
+            .control-btn {
+                padding: 12px;
+                font-size: 1rem;
+            }
+            
+            .mode-btn {
+                padding: 12px;
+                font-size: 1rem;
+            }
+        }
+        
+        /* 冒險模式關卡樣式 */
+        .level-container {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.7);
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+            width: 100%;
+            max-width: 800px;
+        }
+        
+        .level-title {
+            color: #ffcc00;
+            font-size: 2rem;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .level-objectives {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .objective {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 15px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            min-width: 150px;
+        }
+        
+        .objective-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #4caf50;
+        }
+        
+        .objective-label {
+            color: #bbdefb;
+            font-size: 1rem;
+            margin-top: 5px;
+            text-align: center;
+        }
+        
+        .objective.completed .objective-value {
+            color: #ffcc00;
+            text-decoration: line-through;
+        }
+        
+        .close-level-btn {
+            background-color: #f44336;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            margin-top: 15px;
+        }
+        
+        .close-level-btn:hover {
+            background-color: #d32f2f;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Block Blast</h1>
+            <div class="subtitle">將積木放入棋盤，填滿整行或整列來消除得分！</div>
+        </header>
+        
+        <div class="game-container">
+            <div class="left-panel">
+                <div class="game-board-container">
+                    <div class="game-board">
+                        <canvas id="gameBoard" width="400" height="400"></canvas>
+                    </div>
+                </div>
+                
+                <div class="next-blocks-container">
+                    <div class="next-blocks-title">下一個積木（點擊選擇）</div>
+                    <div class="next-blocks" id="nextBlocks">
+                        <!-- 積木將由JavaScript動態生成 -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="right-panel">
+                <div class="stats-container">
+                    <div class="stats-title">遊戲數據</div>
+                    <div class="stats">
+                        <div class="stat-item">
+                            <div class="stat-value" id="scoreValue">0</div>
+                            <div class="stat-label">得分</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="blocksPlacedValue">0</div>
+                            <div class="stat-label">已放置積木</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="rowsClearedValue">0</div>
+                            <div class="stat-label">消除行數</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="columnsClearedValue">0</div>
+                            <div class="stat-label">消除列數</div>
+                        </div>
+                        <div class="stat-item combo-display">
+                            <div class="stat-value" id="comboValue">x1</div>
+                            <div class="stat-label">連擊倍數</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="highScoreValue">0</div>
+                            <div class="stat-label">最高分</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="controls-container">
+                    <div class="controls-title">遊戲模式</div>
+                    <div class="game-mode-selector">
+                        <button class="mode-btn active" id="classicModeBtn">經典模式</button>
+                        <button class="mode-btn" id="adventureModeBtn">冒險模式</button>
+                    </div>
+                    
+                    <div class="controls-title">遊戲控制</div>
+                    <div class="game-controls">
+                        <button class="control-btn" id="startBtn">開始遊戲</button>
+                        <button class="control-btn" id="pauseBtn">暫停遊戲</button>
+                        <button class="control-btn" id="resetBtn">重新開始</button>
+                        <button class="control-btn" id="hintBtn">提示</button>
+                    </div>
+                </div>
+                
+                <div class="instructions">
+                    <div class="instructions-title">遊戲規則</div>
+                    <ul class="instructions-list">
+                        <li>拖放積木到8x8棋盤中</li>
+                        <li>填滿整行或整列即可消除得分</li>
+                        <li>積木不可旋轉，只能以初始方向放置</li>
+                        <li>連續消除可獲得連擊獎勵</li>
+                        <li>當棋盤無法放入任何積木時遊戲結束</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <div class="game-status" id="gameStatus">選擇遊戲模式後點擊「開始遊戲」</div>
+        <div class="level-info" id="levelInfo"></div>
+        
+        <!-- 冒險模式關卡選擇 -->
+        <div class="level-container" id="levelContainer">
+            <div class="level-title" id="levelTitle">冒險模式 - 第1關</div>
+            <div class="level-objectives" id="levelObjectives">
+                <!-- 關卡目標將由JavaScript動態生成 -->
+            </div>
+            <button class="close-level-btn" id="closeLevelBtn">開始挑戰</button>
+        </div>
+        
+        <footer>
+            <p>Block Blast HTML5 版 &copy; 2023 | 使用 Canvas 和 JavaScript 製作</p>
+        </footer>
+    </div>
+
+    <script>
+        // 遊戲變量
+        let gameBoard = [];
+        let currentBlock = null;
+        let nextBlocks = [];
+        let gameRunning = false;
+        let gamePaused = false;
+        let score = 0;
+        let blocksPlaced = 0;
+        let rowsCleared = 0;
+        let columnsCleared = 0;
+        let combo = 0;
+        let comboMultiplier = 1;
+        let highScore = 0;
+        let gameMode = 'classic'; // 'classic' 或 'adventure'
+        let currentLevel = 1;
+        let levelObjectives = {};
+        let levelCompleted = false;
+        
+        // 遊戲常量
+        const BOARD_SIZE = 8;
+        const CELL_SIZE = 50;
+        const BLOCK_TYPES = [
+            // 1x1
+            [[1]],
+            // 1x2
+            [[1, 1]],
+            // 1x3
+            [[1, 1, 1]],
+            // 1x4
+            [[1, 1, 1, 1]],
+            // 2x2
+            [[1, 1],
+             [1, 1]],
+            // L形 3x2
+            [[1, 0],
+             [1, 0],
+             [1, 1]],
+            // 反L形 3x2
+            [[0, 1],
+             [0, 1],
+             [1, 1]],
+            // T形 2x3
+            [[1, 1, 1],
+             [0, 1, 0]],
+            // Z形 2x3
+            [[1, 1, 0],
+             [0, 1, 1]],
+            // 反Z形 2x3
+            [[0, 1, 1],
+             [1, 1, 0]]
+        ];
+        
+        // 冒險模式關卡目標
+        const LEVELS = [
+            {
+                level: 1,
+                title: "初學者關卡",
+                objectives: {
+                    score: 100,
+                    rowsCleared: 3,
+                    columnsCleared: 2
+                }
+            },
+            {
+                level: 2,
+                title: "積木大師",
+                objectives: {
+                    score: 250,
+                    blocksPlaced: 10,
+                    rowsCleared: 5
+                }
+            },
+            {
+                level: 3,
+                title: "連擊挑戰",
+                objectives: {
+                    score: 500,
+                    combo: 3, // 達成3連擊
+                    rowsCleared: 8
+                }
+            },
+            {
+                level: 4,
+                title: "完美消除",
+                objectives: {
+                    score: 800,
+                    rowsCleared: 12,
+                    columnsCleared: 8
+                }
+            },
+            {
+                level: 5,
+                title: "終極挑戰",
+                objectives: {
+                    score: 1500,
+                    blocksPlaced: 25,
+                    rowsCleared: 20,
+                    columnsCleared: 15
+                }
+            }
+        ];
+        
+        // 顏色定義
+        const COLORS = [
+            '#FF5252', // 紅色
+            '#FF9800', // 橙色
+            '#FFEB3B', // 黃色
+            '#4CAF50', // 綠色
+            '#2196F3', // 藍色
+            '#9C27B0', // 紫色
+            '#E91E63', // 粉色
+            '#00BCD4', // 青色
+            '#8BC34A', // 淺綠色
+            '#795548'  // 棕色
+        ];
+        
+        // 獲取Canvas元素和上下文
+        const gameBoardCanvas = document.getElementById('gameBoard');
+        const ctx = gameBoardCanvas.getContext('2d');
+        
+        // 獲取UI元素
+        const scoreValue = document.getElementById('scoreValue');
+        const blocksPlacedValue = document.getElementById('blocksPlacedValue');
+        const rowsClearedValue = document.getElementById('rowsClearedValue');
+        const columnsClearedValue = document.getElementById('columnsClearedValue');
+        const comboValue = document.getElementById('comboValue');
+        const highScoreValue = document.getElementById('highScoreValue');
+        const gameStatus = document.getElementById('gameStatus');
+        const levelInfo = document.getElementById('levelInfo');
+        const nextBlocksContainer = document.getElementById('nextBlocks');
+        const classicModeBtn = document.getElementById('classicModeBtn');
+        const adventureModeBtn = document.getElementById('adventureModeBtn');
+        const startBtn = document.getElementById('startBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const hintBtn = document.getElementById('hintBtn');
+        const levelContainer = document.getElementById('levelContainer');
+        const levelTitle = document.getElementById('levelTitle');
+        const levelObjectivesContainer = document.getElementById('levelObjectives');
+        const closeLevelBtn = document.getElementById('closeLevelBtn');
+        
+        // 從localStorage載入最高分
+        function loadHighScore() {
+            const savedHighScore = localStorage.getItem('blockBlastHighScore');
+            if (savedHighScore) {
+                highScore = parseInt(savedHighScore);
+                highScoreValue.textContent = highScore;
+            }
+        }
+        
+        // 儲存最高分到localStorage
+        function saveHighScore() {
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('blockBlastHighScore', highScore);
+                highScoreValue.textContent = highScore;
+            }
+        }
+        
+        // 初始化棋盤
+        function initBoard() {
+            gameBoard = [];
+            for (let row = 0; row < BOARD_SIZE; row++) {
+                gameBoard[row] = [];
+                for (let col = 0; col < BOARD_SIZE; col++) {
+                    gameBoard[row][col] = 0;
+                }
+            }
+        }
+        
+        // 繪製棋盤
+        function drawBoard() {
+            // 繪製棋盤背景
+            ctx.fillStyle = '#0d47a1';
+            ctx.fillRect(0, 0, gameBoardCanvas.width, gameBoardCanvas.height);
+            
+            // 繪製網格線
+            ctx.strokeStyle = '#1565c0';
+            ctx.lineWidth = 2;
+            
+            for (let i = 0; i <= BOARD_SIZE; i++) {
+                // 垂直線
+                ctx.beginPath();
+                ctx.moveTo(i * CELL_SIZE, 0);
+                ctx.lineTo(i * CELL_SIZE, gameBoardCanvas.height);
+                ctx.stroke();
+                
+                // 水平線
+                ctx.beginPath();
+                ctx.moveTo(0, i * CELL_SIZE);
+                ctx.lineTo(gameBoardCanvas.width, i * CELL_SIZE);
+                ctx.stroke();
+            }
+            
+            // 繪製已放置的積木
+            for (let row = 0; row < BOARD_SIZE; row++) {
+                for (let col = 0; col < BOARD_SIZE; col++) {
+                    if (gameBoard[row][col] !== 0) {
+                        drawBlockCell(col, row, gameBoard[row][col]);
+                    }
+                }
+            }
+            
+            // 繪製當前拖動的積木
+            if (currentBlock && currentBlock.dragging) {
+                drawCurrentBlock();
+            }
+        }
+        
+        // 繪製單個積木單元格
+        function drawBlockCell(x, y, colorIndex) {
+            const color = COLORS[colorIndex - 1] || COLORS[0];
+            
+            // 繪製積木主體
+            ctx.fillStyle = color;
+            ctx.fillRect(x * CELL_SIZE + 2, y * CELL_SIZE + 2, CELL_SIZE - 4, CELL_SIZE - 4);
+            
+            // 繪製積木陰影
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.fillRect(x * CELL_SIZE + 2, y * CELL_SIZE + 2, CELL_SIZE - 4, 3);
+            ctx.fillRect(x * CELL_SIZE + 2, y * CELL_SIZE + 2, 3, CELL_SIZE - 4);
+            
+            // 繪製積木高光
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.fillRect(x * CELL_SIZE + 2, y * CELL_SIZE + CELL_SIZE - 5, CELL_SIZE - 4, 3);
+            ctx.fillRect(x * CELL_SIZE + CELL_SIZE - 5, y * CELL_SIZE + 2, 3, CELL_SIZE - 4);
+            
+            // 繪製積木內部細節
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.fillRect(x * CELL_SIZE + 8, y * CELL_SIZE + 8, CELL_SIZE - 16, CELL_SIZE - 16);
+        }
+        
+        // 繪製當前拖動的積木
+        function drawCurrentBlock() {
+            if (!currentBlock || !currentBlock.dragging) return;
+            
+            const mouseX = currentBlock.mouseX;
+            const mouseY = currentBlock.mouseY;
+            const shape = currentBlock.shape;
+            const colorIndex = currentBlock.colorIndex;
+            
+            // 計算積木左上角位置
+            const blockWidth = shape[0].length;
+            const blockHeight = shape.length;
+            
+            // 將鼠標位置轉換為棋盤格子位置
+            let boardX = Math.floor(mouseX / CELL_SIZE);
+            let boardY = Math.floor(mouseY / CELL_SIZE);
+            
+            // 確保積木不會超出棋盤邊界
+            boardX = Math.max(0, Math.min(boardX, BOARD_SIZE - blockWidth));
+            boardY = Math.max(0, Math.min(boardY, BOARD_SIZE - blockHeight));
+            
+            // 檢查是否可以放置
+            const canPlace = canPlaceBlock(shape, boardX, boardY);
+            
+            // 繪製積木預覽
+            ctx.globalAlpha = canPlace ? 0.7 : 0.4;
+            
+            for (let row = 0; row < shape.length; row++) {
+                for (let col = 0; col < shape[row].length; col++) {
+                    if (shape[row][col] === 1) {
+                        const color = canPlace ? COLORS[colorIndex - 1] : '#888';
+                        ctx.fillStyle = color;
+                        ctx.fillRect(
+                            (boardX + col) * CELL_SIZE + 2,
+                            (boardY + row) * CELL_SIZE + 2,
+                            CELL_SIZE - 4,
+                            CELL_SIZE - 4
+                        );
+                        
+                        // 繪製邊框
+                        ctx.strokeStyle = canPlace ? '#fff' : '#aaa';
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(
+                            (boardX + col) * CELL_SIZE + 2,
+                            (boardY + row) * CELL_SIZE + 2,
+                            CELL_SIZE - 4,
+                            CELL_SIZE - 4
+                        );
+                    }
+                }
+            }
+            
+            ctx.globalAlpha = 1.0;
+        }
+        
+        // 生成隨機積木
+        function generateRandomBlock() {
+            const typeIndex = Math.floor(Math.random() * BLOCK_TYPES.length);
+            const shape = BLOCK_TYPES[typeIndex];
+            const colorIndex = Math.floor(Math.random() * COLORS.length) + 1; // 1-based index
+            
+            return {
+                shape: JSON.parse(JSON.stringify(shape)), // 深拷貝
+                colorIndex: colorIndex,
+                width: shape[0].length,
+                height: shape.length
+            };
+        }
+        
+        // 生成下一個積木
+        function generateNextBlocks() {
+            nextBlocks = [];
+            for (let i = 0; i < 3; i++) {
+                nextBlocks.push(generateRandomBlock());
+            }
+            
+            updateNextBlocksDisplay();
+        }
+        
+        // 更新下一個積木顯示
+        function updateNextBlocksDisplay() {
+            nextBlocksContainer.innerHTML = '';
+            
+            nextBlocks.forEach((block, index) => {
+                const blockContainer = document.createElement('div');
+                blockContainer.className = 'next-block';
+                blockContainer.dataset.index = index;
+                
+                const canvas = document.createElement('canvas');
+                canvas.width = block.width * 30;
+                canvas.height = block.height * 30;
+                const blockCtx = canvas.getContext('2d');
+                
+                // 繪製積木
+                blockCtx.fillStyle = '#1a237e';
+                blockCtx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                const color = COLORS[block.colorIndex - 1];
+                
+                for (let row = 0; row < block.height; row++) {
+                    for (let col = 0; col < block.width; col++) {
+                        if (block.shape[row][col] === 1) {
+                            blockCtx.fillStyle = color;
+                            blockCtx.fillRect(col * 30 + 2, row * 30 + 2, 26, 26);
+                            
+                            blockCtx.strokeStyle = '#fff';
+                            blockCtx.lineWidth = 1;
+                            blockCtx.strokeRect(col * 30 + 2, row * 30 + 2, 26, 26);
+                        }
+                    }
+                }
+                
+                const label = document.createElement('div');
+                label.className = 'block-label';
+                label.textContent = `積木 ${index + 1}`;
+                
+                blockContainer.appendChild(canvas);
+                blockContainer.appendChild(label);
+                
+                blockContainer.addEventListener('click', () => selectBlock(index));
+                
+                nextBlocksContainer.appendChild(blockContainer);
+            });
+        }
+        
+        // 選擇積木
+        function selectBlock(index) {
+            if (!gameRunning || gamePaused) return;
+            
+            if (currentBlock && currentBlock.dragging) {
+                // 已經有積木在拖動中
+                return;
+            }
+            
+            currentBlock = {
+                ...nextBlocks[index],
+                dragging: true,
+                mouseX: 0,
+                mouseY: 0
+            };
+            
+            // 移除已選擇的積木
+            nextBlocks.splice(index, 1);
+            
+            // 添加新的積木
+            nextBlocks.push(generateRandomBlock());
+            
+            updateNextBlocksDisplay();
+            drawBoard();
+        }
+        
+        // 檢查是否可以放置積木
+        function canPlaceBlock(shape, x, y) {
+            for (let row = 0; row < shape.length; row++) {
+                for (let col = 0; col < shape[row].length; col++) {
+                    if (shape[row][col] === 1) {
+                        const boardRow = y + row;
+                        const boardCol = x + col;
+                        
+                        // 檢查是否超出棋盤邊界
+                        if (boardRow >= BOARD_SIZE || boardCol >= BOARD_SIZE) {
+                            return false;
+                        }
+                        
+                        // 檢查該位置是否已經被佔用
+                        if (gameBoard[boardRow][boardCol] !== 0) {
+                            return false;
+                        }
+                    }
+                }
+            }
+            
+            return true;
+        }
+        
+        // 放置積木
+        function placeBlock(shape, x, y, colorIndex) {
+            for (let row = 0; row < shape.length; row++) {
+                for (let col = 0; col < shape[row].length; col++) {
+                    if (shape[row][col] === 1) {
+                        const boardRow = y + row;
+                        const boardCol = x + col;
+                        gameBoard[boardRow][boardCol] = colorIndex;
+                    }
+                }
+            }
+            
+            // 更新統計數據
+            blocksPlaced++;
+            blocksPlacedValue.textContent = blocksPlaced;
+            
+            // 檢查消除
+            const cleared = checkClears();
+            
+            // 更新得分
+            updateScore(cleared);
+            
+            // 檢查遊戲是否結束
+            checkGameOver();
+            
+            // 更新關卡進度
+            updateLevelProgress();
+        }
+        
+        // 檢查消除
+        function checkClears() {
+            let rowsToClear = [];
+            let colsToClear = [];
+            
+            // 檢查行
+            for (let row = 0; row < BOARD_SIZE; row++) {
+                let fullRow = true;
+                for (let col = 0; col < BOARD_SIZE; col++) {
+                    if (gameBoard[row][col] === 0) {
+                        fullRow = false;
+                        break;
+                    }
+                }
+                if (fullRow) {
+                    rowsToClear.push(row);
+                }
+            }
+            
+            // 檢查列
+            for (let col = 0; col < BOARD_SIZE; col++) {
+                let fullCol = true;
+                for (let row = 0; row < BOARD_SIZE; row++) {
+                    if (gameBoard[row][col] === 0) {
+                        fullCol = false;
+                        break;
+                    }
+                }
+                if (fullCol) {
+                    colsToClear.push(col);
+                }
+            }
+            
+            // 執行消除
+            if (rowsToClear.length > 0 || colsToClear.length > 0) {
+                // 清除行
+                rowsToClear.forEach(row => {
+                    for (let col = 0; col < BOARD_SIZE; col++) {
+                        gameBoard[row][col] = 0;
+                    }
+                    rowsCleared++;
+                });
+                
+                // 清除列
+                colsToClear.forEach(col => {
+                    for (let row = 0; row < BOARD_SIZE; row++) {
+                        gameBoard[row][col] = 0;
+                    }
+                    columnsCleared++;
+                });
+                
+                // 更新統計數據
+                rowsClearedValue.textContent = rowsCleared;
+                columnsClearedValue.textContent = columnsCleared;
+                
+                // 增加連擊
+                if (rowsToClear.length > 0 || colsToClear.length > 0) {
+                    combo++;
+                    comboMultiplier = 1 + Math.floor(combo / 3) * 0.5;
+                    comboValue.textContent = `x${comboMultiplier.toFixed(1)}`;
+                }
+            } else {
+                // 沒有消除，重置連擊
+                combo = 0;
+                comboMultiplier = 1;
+                comboValue.textContent = `x${comboMultiplier}`;
+            }
+            
+            return {
+                rows: rowsToClear.length,
+                columns: colsToClear.length,
+                total: rowsToClear.length + colsToClear.length
+            };
+        }
+        
+        // 更新得分
+        function updateScore(cleared) {
+            let points = 0;
+            
+            // 放置積木得分
+            points += 10;
+            
+            // 消除得分
+            if (cleared.total > 0) {
+                points += cleared.rows * 100;
+                points += cleared.columns * 100;
+                
+                // 多行/列消除獎勵
+                if (cleared.total > 1) {
+                    points += cleared.total * 50;
+                }
+                
+                // 連擊獎勵
+                if (combo > 1) {
+                    points = Math.floor(points * comboMultiplier);
+                }
+            }
+            
+            score += points;
+            scoreValue.textContent = score;
+            
+            // 更新最高分
+            if (score > highScore) {
+                highScore = score;
+                highScoreValue.textContent = highScore;
+                saveHighScore();
+            }
+        }
+        
+        // 檢查遊戲是否結束
+        function checkGameOver() {
+            // 檢查是否還有空間放置任何一個積木
+            for (let i = 0; i < nextBlocks.length; i++) {
+                const block = nextBlocks[i];
+                
+                // 嘗試在棋盤的每個位置放置積木
+                for (let row = 0; row <= BOARD_SIZE - block.height; row++) {
+                    for (let col = 0; col <= BOARD_SIZE - block.width; col++) {
+                        if (canPlaceBlock(block.shape, col, row)) {
+                            // 還有空間，遊戲繼續
+                            return false;
+                        }
+                    }
+                }
+            }
+            
+            // 沒有空間放置任何積木，遊戲結束
+            gameOver();
+            return true;
+        }
+        
+        // 遊戲結束
+        function gameOver() {
+            gameRunning = false;
+            
+            // 更新遊戲狀態
+            if (gameMode === 'classic') {
+                gameStatus.textContent = `遊戲結束！最終得分: ${score}`;
+                gameStatus.style.color = "#f44336";
+                
+                // 儲存最高分
+                saveHighScore();
+            } else if (gameMode === 'adventure') {
+                // 檢查是否完成關卡目標
+                const levelComplete = checkLevelCompletion();
+                
+                if (levelComplete) {
+                    gameStatus.textContent = `恭喜！完成第${currentLevel}關！得分: ${score}`;
+                    gameStatus.style.color = "#4CAF50";
+                    levelCompleted = true;
+                } else {
+                    gameStatus.textContent = `關卡失敗！得分: ${score}`;
+                    gameStatus.style.color = "#f44336";
+                }
+            }
+            
+            // 顯示重新開始按鈕
+            startBtn.textContent = "重新開始";
+        }
+        
+        // 開始遊戲
+        function startGame() {
+            if (gameRunning && !gamePaused) {
+                // 遊戲正在運行，點擊變為重新開始
+                resetGame();
+                return;
+            }
+            
+            // 初始化遊戲變量
+            initBoard();
+            generateNextBlocks();
+            score = 0;
+            blocksPlaced = 0;
+            rowsCleared = 0;
+            columnsCleared = 0;
+            combo = 0;
+            comboMultiplier = 1;
+            levelCompleted = false;
+            
+            // 更新UI
+            scoreValue.textContent = score;
+            blocksPlacedValue.textContent = blocksPlaced;
+            rowsClearedValue.textContent = rowsCleared;
+            columnsClearedValue.textContent = columnsCleared;
+            comboValue.textContent = `x${comboMultiplier}`;
+            
+            // 設置遊戲狀態
+            gameRunning = true;
+            gamePaused = false;
+            
+            if (gameMode === 'classic') {
+                gameStatus.textContent = "遊戲進行中... 點擊下方積木開始放置";
+                gameStatus.style.color = "#4CAF50";
+                levelInfo.textContent = "";
+            } else if (gameMode === 'adventure') {
+                gameStatus.textContent = `冒險模式 - 第${currentLevel}關進行中...`;
+                gameStatus.style.color = "#FF9800";
+                levelInfo.textContent = `目標: ${getLevelObjectivesText()}`;
+                
+                // 初始化關卡目標
+                initLevelObjectives();
+            }
+            
+            startBtn.textContent = "重新開始";
+            
+            // 繪製棋盤
+            drawBoard();
+        }
+        
+        // 暫停遊戲
+        function pauseGame() {
+            if (!gameRunning) return;
+            
+            gamePaused = !gamePaused;
+            
+            if (gamePaused) {
+                gameStatus.textContent = "遊戲已暫停";
+                gameStatus.style.color = "#FF9800";
+                pauseBtn.textContent = "繼續遊戲";
+            } else {
+                gameStatus.textContent = "遊戲進行中...";
+                gameStatus.style.color = "#4CAF50";
+                pauseBtn.textContent = "暫停遊戲";
+                drawBoard();
+            }
+        }
+        
+        // 重置遊戲
+        function resetGame() {
+            gameRunning = false;
+            gamePaused = false;
+            
+            // 重置遊戲變量
+            currentBlock = null;
+            
+            // 更新UI
+            gameStatus.textContent = "選擇遊戲模式後點擊「開始遊戲」";
+            gameStatus.style.color = "#ffcc00";
+            pauseBtn.textContent = "暫停遊戲";
+            startBtn.textContent = "開始遊戲";
+            
+            if (gameMode === 'adventure') {
+                levelInfo.textContent = `冒險模式 - 第${currentLevel}關`;
+            } else {
+                levelInfo.textContent = "";
+            }
+            
+            // 繪製初始棋盤
+            initBoard();
+            generateNextBlocks();
+            drawBoard();
+        }
+        
+        // 顯示提示
+        function showHint() {
+            if (!gameRunning || gamePaused) return;
+            
+            // 尋找可以放置積木的位置
+            for (let i = 0; i < nextBlocks.length; i++) {
+                const block = nextBlocks[i];
+                
+                for (let row = 0; row <= BOARD_SIZE - block.height; row++) {
+                    for (let col = 0; col <= BOARD_SIZE - block.width; col++) {
+                        if (canPlaceBlock(block.shape, col, row)) {
+                            // 顯示提示
+                            ctx.globalAlpha = 0.5;
+                            ctx.fillStyle = '#FFEB3B';
+                            
+                            for (let r = 0; r < block.height; r++) {
+                                for (let c = 0; c < block.width; c++) {
+                                    if (block.shape[r][c] === 1) {
+                                        ctx.fillRect(
+                                            (col + c) * CELL_SIZE + 5,
+                                            (row + r) * CELL_SIZE + 5,
+                                            CELL_SIZE - 10,
+                                            CELL_SIZE - 10
+                                        );
+                                    }
+                                }
+                            }
+                            
+                            ctx.globalAlpha = 1.0;
+                            
+                            // 設置定時器清除提示
+                            setTimeout(() => {
+                                if (gameRunning) drawBoard();
+                            }, 1000);
+                            
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 初始化冒險模式關卡
+        function initAdventureMode() {
+            currentLevel = 1;
+            levelTitle.textContent = `冒險模式 - 第${currentLevel}關`;
+            
+            // 清空關卡目標容器
+            levelObjectivesContainer.innerHTML = '';
+            
+            // 獲取當前關卡
+            const level = LEVELS.find(l => l.level === currentLevel);
+            
+            if (level) {
+                // 顯示關卡目標
+                for (const [key, value] of Object.entries(level.objectives)) {
+                    const objective = document.createElement('div');
+                    objective.className = 'objective';
+                    
+                    const objectiveValue = document.createElement('div');
+                    objectiveValue.className = 'objective-value';
+                    objectiveValue.textContent = value;
+                    objectiveValue.id = `objective-${key}`;
+                    
+                    const objectiveLabel = document.createElement('div');
+                    objectiveLabel.className = 'objective-label';
+                    
+                    // 設置目標標籤
+                    switch(key) {
+                        case 'score':
+                            objectiveLabel.textContent = '得分';
+                            break;
+                        case 'blocksPlaced':
+                            objectiveLabel.textContent = '放置積木';
+                            break;
+                        case 'rowsCleared':
+                            objectiveLabel.textContent = '消除行數';
+                            break;
+                        case 'columnsCleared':
+                            objectiveLabel.textContent = '消除列數';
+                            break;
+                        case 'combo':
+                            objectiveLabel.textContent = '連擊數';
+                            break;
+                    }
+                    
+                    objective.appendChild(objectiveValue);
+                    objective.appendChild(objectiveLabel);
+                    levelObjectivesContainer.appendChild(objective);
+                }
+            }
+            
+            // 顯示關卡選擇界面
+            levelContainer.style.display = 'flex';
+        }
+        
+        // 初始化關卡目標
+        function initLevelObjectives() {
+            const level = LEVELS.find(l => l.level === currentLevel);
+            if (level) {
+                levelObjectives = { ...level.objectives };
+            }
+        }
+        
+        // 更新關卡進度
+        function updateLevelProgress() {
+            if (gameMode !== 'adventure') return;
+            
+            // 更新目標進度
+            for (const [key, target] of Object.entries(levelObjectives)) {
+                let current = 0;
+                
+                switch(key) {
+                    case 'score':
+                        current = score;
+                        break;
+                    case 'blocksPlaced':
+                        current = blocksPlaced;
+                        break;
+                    case 'rowsCleared':
+                        current = rowsCleared;
+                        break;
+                    case 'columnsCleared':
+                        current = columnsCleared;
+                        break;
+                    case 'combo':
+                        current = combo;
+                        break;
+                }
+                
+                const objectiveElement = document.getElementById(`objective-${key}`);
+                if (objectiveElement) {
+                    if (current >= target) {
+                        objectiveElement.parentElement.classList.add('completed');
+                        objectiveElement.textContent = '已完成';
+                    } else {
+                        objectiveElement.textContent = `${current}/${target}`;
+                    }
+                }
+            }
+        }
+        
+        // 檢查關卡完成情況
+        function checkLevelCompletion() {
+            for (const [key, target] of Object.entries(levelObjectives)) {
+                let current = 0;
+                
+                switch(key) {
+                    case 'score':
+                        current = score;
+                        break;
+                    case 'blocksPlaced':
+                        current = blocksPlaced;
+                        break;
+                    case 'rowsCleared':
+                        current = rowsCleared;
+                        break;
+                    case 'columnsCleared':
+                        current = columnsCleared;
+                        break;
+                    case 'combo':
+                        current = combo;
+                        break;
+                }
+                
+                if (current < target) {
+                    return false;
+                }
+            }
+            
+            return true;
+        }
+        
+        // 獲取關卡目標文本
+        function getLevelObjectivesText() {
+            const level = LEVELS.find(l => l.level === currentLevel);
+            if (!level) return '';
+            
+            const objectives = [];
+            
+            for (const [key, value] of Object.entries(level.objectives)) {
+                let label = '';
+                
+                switch(key) {
+                    case 'score':
+                        label = `得分達到${value}`;
+                        break;
+                    case 'blocksPlaced':
+                        label = `放置${value}個積木`;
+                        break;
+                    case 'rowsCleared':
+                        label = `消除${value}行`;
+                        break;
+                    case 'columnsCleared':
+                        label = `消除${value}列`;
+                        break;
+                    case 'combo':
+                        label = `達成${value}連擊`;
+                        break;
+                }
+                
+                objectives.push(label);
+            }
+            
+            return objectives.join('，');
+        }
+        
+        // 下一關
+        function nextLevel() {
+            if (currentLevel < LEVELS.length) {
+                currentLevel++;
+                levelTitle.textContent = `冒險模式 - 第${currentLevel}關`;
+                
+                // 清空關卡目標容器
+                levelObjectivesContainer.innerHTML = '';
+                
+                // 獲取當前關卡
+                const level = LEVELS.find(l => l.level === currentLevel);
+                
+                if (level) {
+                    // 顯示關卡目標
+                    for (const [key, value] of Object.entries(level.objectives)) {
+                        const objective = document.createElement('div');
+                        objective.className = 'objective';
+                        
+                        const objectiveValue = document.createElement('div');
+                        objectiveValue.className = 'objective-value';
+                        objectiveValue.textContent = value;
+                        objectiveValue.id = `objective-${key}`;
+                        
+                        const objectiveLabel = document.createElement('div');
+                        objectiveLabel.className = 'objective-label';
+                        
+                        // 設置目標標籤
+                        switch(key) {
+                            case 'score':
+                                objectiveLabel.textContent = '得分';
+                                break;
+                            case 'blocksPlaced':
+                                objectiveLabel.textContent = '放置積木';
+                                break;
+                            case 'rowsCleared':
+                                objectiveLabel.textContent = '消除行數';
+                                break;
+                            case 'columnsCleared':
+                                objectiveLabel.textContent = '消除列數';
+                                break;
+                            case 'combo':
+                                objectiveLabel.textContent = '連擊數';
+                                break;
+                        }
+                        
+                        objective.appendChild(objectiveValue);
+                        objective.appendChild(objectiveLabel);
+                        levelObjectivesContainer.appendChild(objective);
+                    }
+                }
+                
+                // 開始新關卡
+                startGame();
+            } else {
+                // 所有關卡完成
+                gameStatus.textContent = "恭喜！您已完成所有冒險模式關卡！";
+                gameStatus.style.color = "#FF9800";
+                levelInfo.textContent = "";
+                gameRunning = false;
+                startBtn.textContent = "重新開始";
+            }
+        }
+        
+        // 鼠標事件處理
+        gameBoardCanvas.addEventListener('mousedown', (e) => {
+            if (!gameRunning || gamePaused || !currentBlock) return;
+            
+            const rect = gameBoardCanvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            // 將鼠標位置轉換為棋盤格子位置
+            let boardX = Math.floor(mouseX / CELL_SIZE);
+            let boardY = Math.floor(mouseY / CELL_SIZE);
+            
+            // 確保積木不會超出棋盤邊界
+            const blockWidth = currentBlock.shape[0].length;
+            const blockHeight = currentBlock.shape.length;
+            
+            boardX = Math.max(0, Math.min(boardX, BOARD_SIZE - blockWidth));
+            boardY = Math.max(0, Math.min(boardY, BOARD_SIZE - blockHeight));
+            
+            // 檢查是否可以放置
+            if (canPlaceBlock(currentBlock.shape, boardX, boardY)) {
+                // 放置積木
+                placeBlock(currentBlock.shape, boardX, boardY, currentBlock.colorIndex);
+                
+                // 清除當前積木
+                currentBlock = null;
+                
+                // 重繪棋盤
+                drawBoard();
+                
+                // 檢查冒險模式關卡是否完成
+                if (gameMode === 'adventure' && levelCompleted) {
+                    setTimeout(() => {
+                        if (confirm(`恭喜完成第${currentLevel}關！是否繼續下一關？`)) {
+                            nextLevel();
+                        }
+                    }, 500);
+                }
+            }
+        });
+        
+        gameBoardCanvas.addEventListener('mousemove', (e) => {
+            if (!gameRunning || gamePaused || !currentBlock || !currentBlock.dragging) return;
+            
+            const rect = gameBoardCanvas.getBoundingClientRect();
+            currentBlock.mouseX = e.clientX - rect.left;
+            currentBlock.mouseY = e.clientY - rect.top;
+            
+            drawBoard();
+        });
+        
+        gameBoardCanvas.addEventListener('mouseup', () => {
+            if (currentBlock) {
+                currentBlock.dragging = false;
+                drawBoard();
+            }
+        });
+        
+        // 按鈕事件監聽
+        startBtn.addEventListener('click', startGame);
+        pauseBtn.addEventListener('click', pauseGame);
+        resetBtn.addEventListener('click', resetGame);
+        hintBtn.addEventListener('click', showHint);
+        
+        classicModeBtn.addEventListener('click', () => {
+            gameMode = 'classic';
+            classicModeBtn.classList.add('active');
+            adventureModeBtn.classList.remove('active');
+            levelContainer.style.display = 'none';
+            resetGame();
+        });
+        
+        adventureModeBtn.addEventListener('click', () => {
+            gameMode = 'adventure';
+            adventureModeBtn.classList.add('active');
+            classicModeBtn.classList.remove('active');
+            initAdventureMode();
+        });
+        
+        closeLevelBtn.addEventListener('click', () => {
+            levelContainer.style.display = 'none';
+            startGame();
+        });
+        
+        // 初始化遊戲
+        loadHighScore();
+        initBoard();
+        generateNextBlocks();
+        drawBoard();
+    </script>
+</body>
+</html>
