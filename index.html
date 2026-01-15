@@ -3,45 +3,260 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>我的遊戲館</title>
+    <title>MINI ARCADE | 讓無聊升級</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=Poppins:wght@600;800&display=swap" rel="stylesheet">
     <style>
+        /* --- 全局設定 --- */
+        :root {
+            --bg-color: #f9f9f7;       /* 米白色背景 */
+            --card-bg: #ffffff;        /* 卡片純白背景 */
+            --text-main: #2c3e50;      /* 深色文字 */
+            --text-sub: #7f8c8d;       /* 次要文字(灰色) */
+            --accent-blue: #00d2ff;    /* 裝飾藍色 (參考你的圖片) */
+            --accent-purple: #3a7bd5;  /* 標題漸層色 */
+            --shadow: 0 10px 20px rgba(0,0,0,0.05); /* 柔和陰影 */
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            background: #1a1a2e;
-            color: white;
+            font-family: 'Poppins', 'Noto Sans TC', sans-serif; /* 中英文字體搭配 */
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.6;
+            padding-bottom: 60px;
+        }
+
+        /* --- 頁首 Header --- */
+        header {
             text-align: center;
-            padding: 40px;
+            padding: 60px 20px 40px;
         }
-        h1 { margin-bottom: 30px; }
-        .games { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; }
+
+        h1.site-title {
+            font-size: 3.5rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            /* 漸層文字效果 */
+            background: linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        p.subtitle {
+            font-size: 1.1rem;
+            color: var(--text-sub);
+            letter-spacing: 1px;
+            font-weight: 500;
+        }
+
+        /* --- 容器 --- */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* --- 分類標題 (參考圖片樣式) --- */
+        .section-header {
+            display: flex;
+            align-items: center;
+            margin: 50px 0 30px;
+            padding-left: 15px;
+            border-left: 6px solid var(--accent-blue); /* 左側藍條 */
+        }
+
+        .section-header h2 {
+            font-size: 1.8rem;
+            margin-right: 15px;
+            text-transform: uppercase;
+            color: var(--text-main);
+        }
+
+        .section-header span {
+            font-size: 1rem;
+            color: var(--text-sub);
+            font-weight: normal;
+        }
+
+        /* --- 遊戲卡片網格 --- */
+        .games-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+
+        /* --- 卡片設計 --- */
         .game-card {
-            background: #2d2d44;
-            padding: 25px 35px;
-            border-radius: 10px;
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 30px;
             text-decoration: none;
-            color: white;
-            transition: 0.3s;
+            color: inherit;
+            transition: all 0.3s ease;
+            box-shadow: var(--shadow);
+            border: 1px solid rgba(0,0,0,0.03);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 100%;
         }
-        .game-card:hover { background: #3d3d5c; transform: scale(1.05); }
-        .icon { font-size: 2em; }
+
+        .game-card:hover {
+            transform: translateY(-8px); /* 懸浮上浮效果 */
+            box-shadow: 0 15px 30px rgba(0,0,0,0.1);
+            border-color: var(--accent-blue);
+        }
+
+        .card-top {
+            margin-bottom: 20px;
+        }
+
+        .icon {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            display: inline-block;
+            background: #f0f4f8;
+            width: 70px;
+            height: 70px;
+            line-height: 70px;
+            text-align: center;
+            border-radius: 50%;
+        }
+
+        .game-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+
+        .game-desc {
+            font-size: 0.95rem;
+            color: #666;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        /* --- 標籤樣式 --- */
+        .tags {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .tag {
+            font-size: 0.8rem;
+            padding: 6px 14px;
+            border-radius: 20px;
+            background: #edf2f7;
+            color: #4a5568;
+            font-weight: 500;
+        }
+
+        /* 不同類型的標籤顏色 (可選) */
+        .tag.relax { background: #e6fffa; color: #2c7a7b; }
+        .tag.action { background: #fff5f5; color: #c53030; }
+        .tag.puzzle { background: #ebf8ff; color: #2b6cb0; }
+        .tag.classic { background: #faf5ff; color: #553c9a; }
+
+        /* --- 響應式調整 --- */
+        @media (max-width: 768px) {
+            h1.site-title { font-size: 2.5rem; }
+            .game-card { padding: 20px; }
+        }
     </style>
 </head>
 <body>
-    <h1>🎮 我的遊戲館</h1>
-    <div class="games">
-        <a href="game1.html" class="game-card">
-            <div class="icon">🐍</div>
-            <div>貪食蛇</div>
-        </a>
-        <a href="game2.html" class="game-card">
-            <div class="icon">🐦</div>
-            <div>flappy bird</div>
-        </a>
-        <a href="game3.html" class="game-card">
-            <div class="icon">❒</div>
-            <div>block blast</div>
-        </a>
-        <!-- 加更多遊戲 -->
+
+    <header>
+        <h1 class="site-title">MINI ARCADE</h1>
+        <p class="subtitle">LEVEL UP YOUR BOREDOM | 升級你的無聊時光</p>
+    </header>
+
+    <div class="container">
+        
+        <section>
+            <div class="section-header">
+                <h2>SOLO</h2>
+                <span>單人挑戰</span>
+            </div>
+
+            <div class="games-grid">
+                <a href="game1.html" class="game-card">
+                    <div class="card-top">
+                        <div class="icon">🐍</div>
+                        <div class="game-title">經典貪食蛇 (Snake)</div>
+                        <div class="game-desc">
+                            最純粹的挑戰，在方寸之間考驗反應。吃掉蘋果，讓你的蛇成為王者。
+                        </div>
+                    </div>
+                    <div class="tags">
+                        <span class="tag classic">經典</span>
+                        <span class="tag relax">休閒</span>
+                    </div>
+                </a>
+
+                <a href="game2.html" class="game-card">
+                    <div class="card-top">
+                        <div class="icon">🐦</div>
+                        <div class="game-title">Flappy Bird</div>
+                        <div class="game-desc">
+                            控制笨拙的小鳥穿越水管，只需點擊，卻讓人欲罷不能的高難度挑戰。
+                        </div>
+                    </div>
+                    <div class="tags">
+                        <span class="tag action">動作</span>
+                        <span class="tag">高難度</span>
+                    </div>
+                </a>
+
+                <a href="game3.html" class="game-card">
+                    <div class="card-top">
+                        <div class="icon">❒</div>
+                        <div class="game-title">Block Blast</div>
+                        <div class="game-desc">
+                            極簡風格的積木消除遊戲，放置方塊填滿行列，放鬆心情釋放壓力。
+                        </div>
+                    </div>
+                    <div class="tags">
+                        <span class="tag puzzle">益智</span>
+                        <span class="tag relax">放鬆</span>
+                    </div>
+                </a>
+            </div>
+        </section>
+
+        <section>
+            <div class="section-header">
+                <h2>VS MODE</h2>
+                <span>雙人對戰</span>
+            </div>
+
+            <div class="games-grid">
+                <a href="#" class="game-card" style="opacity: 0.7; cursor: not-allowed;">
+                    <div class="card-top">
+                        <div class="icon">🏓</div>
+                        <div class="game-title">乒乓對決 (Ping Pong)</div>
+                        <div class="game-desc">
+                            經典的雙人彈球遊戲。與朋友在同一鍵盤上分出高下！(即將推出)
+                        </div>
+                    </div>
+                    <div class="tags">
+                        <span class="tag action">競技</span>
+                        <span class="tag">雙人</span>
+                    </div>
+                </a>
+            </div>
+        </section>
+
     </div>
+
 </body>
 </html>
