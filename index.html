@@ -6,15 +6,32 @@
     <title>MINI ARCADE | 讓無聊升級</title>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=Poppins:wght@600;800&display=swap" rel="stylesheet">
     <style>
-        /* --- 全局設定 --- */
+        /* --- 1. 定義變數 (預設：白天模式 - 白色為主) --- */
         :root {
             --bg-color: #f9f9f7;       /* 米白色背景 */
             --card-bg: #ffffff;        /* 卡片純白背景 */
             --text-main: #2c3e50;      /* 深色文字 */
             --text-sub: #7f8c8d;       /* 次要文字(灰色) */
-            --accent-blue: #00d2ff;    /* 裝飾藍色 (參考你的圖片) */
-            --accent-purple: #3a7bd5;  /* 標題漸層色 */
+            --accent-blue: #00d2ff;    /* 裝飾藍色 */
             --shadow: 0 10px 20px rgba(0,0,0,0.05); /* 柔和陰影 */
+            --tag-bg: #edf2f7;         /* 標籤底色 */
+            --tag-text: #4a5568;       /* 標籤文字 */
+            --icon-bg: #f0f4f8;        /* 圖示底色 */
+            --section-line: #00d2ff;   /* 分隔線顏色 */
+        }
+
+        /* --- 2. 定義黑夜模式 (當 html 標籤有 data-theme="dark" 時生效 - 黑色為主) --- */
+        [data-theme="dark"] {
+            --bg-color: #121212;       /* 深黑色背景 */
+            --card-bg: #1e1e1e;        /* 深灰卡片背景 */
+            --text-main: #e0e0e0;      /* 淺白文字 */
+            --text-sub: #a0a0a0;       /* 淺灰文字 */
+            --accent-blue: #38bdf8;    /* 亮藍色 (在黑底更清楚) */
+            --shadow: 0 10px 30px rgba(0,0,0,0.5); /* 黑夜陰影較重 */
+            --tag-bg: #333333;         /* 深色標籤底 */
+            --tag-text: #cccccc;       /* 淺色標籤字 */
+            --icon-bg: #2d2d2d;        /* 深色圖示底 */
+            --section-line: #38bdf8;   /* 黑夜分隔線 */
         }
 
         * {
@@ -24,17 +41,48 @@
         }
 
         body {
-            font-family: 'Poppins', 'Noto Sans TC', sans-serif; /* 中英文字體搭配 */
+            font-family: 'Poppins', 'Noto Sans TC', sans-serif;
             background-color: var(--bg-color);
             color: var(--text-main);
             line-height: 1.6;
             padding-bottom: 60px;
+            /* 讓顏色切換時有滑順的過渡效果 */
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        /* --- 切換按鈕樣式 --- */
+        .theme-switch-wrapper {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+        }
+
+        .theme-btn {
+            background: var(--card-bg);
+            border: 2px solid var(--accent-blue);
+            color: var(--text-main);
+            padding: 8px 16px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: bold;
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            box-shadow: var(--shadow);
+        }
+
+        .theme-btn:hover {
+            transform: scale(1.05);
         }
 
         /* --- 頁首 Header --- */
         header {
             text-align: center;
-            padding: 60px 20px 40px;
+            padding: 80px 20px 40px; /* 增加上方留白給按鈕 */
+            position: relative;
         }
 
         h1.site-title {
@@ -42,7 +90,6 @@
             font-weight: 800;
             text-transform: uppercase;
             letter-spacing: 2px;
-            /* 漸層文字效果 */
             background: linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -63,13 +110,13 @@
             padding: 0 20px;
         }
 
-        /* --- 分類標題 (參考圖片樣式) --- */
+        /* --- 分類標題 --- */
         .section-header {
             display: flex;
             align-items: center;
             margin: 50px 0 30px;
             padding-left: 15px;
-            border-left: 6px solid var(--accent-blue); /* 左側藍條 */
+            border-left: 6px solid var(--section-line);
         }
 
         .section-header h2 {
@@ -101,7 +148,7 @@
             color: inherit;
             transition: all 0.3s ease;
             box-shadow: var(--shadow);
-            border: 1px solid rgba(0,0,0,0.03);
+            border: 1px solid rgba(128, 128, 128, 0.1); /* 微微的邊框 */
             display: flex;
             flex-direction: column;
             justify-content: space-between;
@@ -109,37 +156,36 @@
         }
 
         .game-card:hover {
-            transform: translateY(-8px); /* 懸浮上浮效果 */
-            box-shadow: 0 15px 30px rgba(0,0,0,0.1);
+            transform: translateY(-8px);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.15);
             border-color: var(--accent-blue);
         }
 
-        .card-top {
-            margin-bottom: 20px;
-        }
+        .card-top { margin-bottom: 20px; }
 
         .icon {
             font-size: 3rem;
             margin-bottom: 20px;
             display: inline-block;
-            background: #f0f4f8;
+            background: var(--icon-bg);
             width: 70px;
             height: 70px;
             line-height: 70px;
             text-align: center;
             border-radius: 50%;
+            transition: background 0.3s ease;
         }
 
         .game-title {
             font-size: 1.4rem;
             font-weight: 700;
             margin-bottom: 10px;
-            color: #2c3e50;
+            color: var(--text-main);
         }
 
         .game-desc {
             font-size: 0.95rem;
-            color: #666;
+            color: var(--text-sub);
             margin-bottom: 20px;
             line-height: 1.5;
         }
@@ -155,25 +201,34 @@
             font-size: 0.8rem;
             padding: 6px 14px;
             border-radius: 20px;
-            background: #edf2f7;
-            color: #4a5568;
+            background: var(--tag-bg);
+            color: var(--tag-text);
             font-weight: 500;
+            transition: background 0.3s ease, color 0.3s ease;
         }
 
-        /* 不同類型的標籤顏色 (可選) */
-        .tag.relax { background: #e6fffa; color: #2c7a7b; }
-        .tag.action { background: #fff5f5; color: #c53030; }
-        .tag.puzzle { background: #ebf8ff; color: #2b6cb0; }
-        .tag.classic { background: #faf5ff; color: #553c9a; }
+        /* 為了讓標籤在黑夜模式也好看，我們使用透明度顏色 */
+        .tag.relax { background: rgba(56, 178, 172, 0.15); color: #38b2ac; }
+        .tag.action { background: rgba(229, 62, 62, 0.15); color: #fc8181; }
+        .tag.puzzle { background: rgba(66, 153, 225, 0.15); color: #63b3ed; }
+        .tag.classic { background: rgba(159, 122, 234, 0.15); color: #b794f4; }
 
         /* --- 響應式調整 --- */
         @media (max-width: 768px) {
             h1.site-title { font-size: 2.5rem; }
             .game-card { padding: 20px; }
+            .theme-switch-wrapper { top: 15px; right: 15px; }
         }
     </style>
 </head>
 <body>
+
+    <div class="theme-switch-wrapper">
+        <button class="theme-btn" id="theme-toggle">
+            <span id="theme-icon">🌙</span> 
+            <span id="theme-text">Dark Mode</span>
+        </button>
+    </div>
 
     <header>
         <h1 class="site-title">MINI ARCADE</h1>
@@ -257,6 +312,43 @@
         </section>
 
     </div>
+
+    <script>
+        const toggleBtn = document.getElementById('theme-toggle');
+        const themeIcon = document.getElementById('theme-icon');
+        const themeText = document.getElementById('theme-text');
+        const html = document.documentElement;
+
+        // 檢查使用者之前有沒有存過設定，沒有的話預設為 'light'
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        html.setAttribute('data-theme', currentTheme);
+        updateButton(currentTheme);
+
+        // 按鈕點擊事件
+        toggleBtn.addEventListener('click', () => {
+            let theme = html.getAttribute('data-theme');
+            // 如果現在是亮，就變暗；反之亦然
+            let newTheme = theme === 'light' ? 'dark' : 'light';
+            
+            // 設定新的主題到 html 標籤上
+            html.setAttribute('data-theme', newTheme);
+            // 儲存到瀏覽器，下次重新整理才不會跑掉
+            localStorage.setItem('theme', newTheme);
+            
+            updateButton(newTheme);
+        });
+
+        // 更新按鈕文字和圖示的函式
+        function updateButton(theme) {
+            if (theme === 'dark') {
+                themeIcon.textContent = '☀️';
+                themeText.textContent = 'Light Mode';
+            } else {
+                themeIcon.textContent = '🌙';
+                themeText.textContent = 'Dark Mode';
+            }
+        }
+    </script>
 
 </body>
 </html>
