@@ -3,14 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Block Puzzle - Fixed</title>
+    <title>Block Blast - Fixed</title>
     <style>
         :root {
-            --bg-color: #556070;         
-            --grid-bg: #2b3342;          
-            --cell-empty: #3b4353;       
-            --text-color: #ffffff;
-            --accent-gold: #ffcc00;      
+            --bg-gradient: linear-gradient(180deg, #E3F2FD 0%, #90CAF9 100%);
+            --text-color: #1565C0;
+            --grid-bg: #263238;          
+            --cell-empty: #37474F;       
+            --accent-gold: #FBC02D;
+            --text-blue: #E3F2FD;
+            --modal-bg-gradient: linear-gradient(to bottom, #1E88E5 0%, #0D47A1 100%);
+            --btn-green-start: #4cd964; 
+            --btn-green-end: #28b446;   
         }
 
         * {
@@ -22,57 +26,96 @@
         body {
             margin: 0;
             padding: 0;
-            background-color: var(--bg-color);
+            background: var(--bg-gradient);
             color: var(--text-color);
-            font-family: 'Segoe UI', sans-serif;
+            font-family: 'Segoe UI', Roboto, sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             height: 100vh;
             overflow: hidden;
-            touch-action: none; /* 禁止瀏覽器預設滑動 */
+            touch-action: none;
         }
 
-        /* 頂部 */
+        /* 頂部資訊欄 */
         .top-bar {
             width: 100%;
-            max-width: 450px;
+            max-width: 420px;
             display: flex;
             justify-content: space-between;
-            padding: 20px;
+            align-items: center;
+            padding: 15px 20px;
+            position: absolute;
+            top: 0;
+            z-index: 10;
         }
 
-        .high-score { font-size: 1.2rem; color: var(--accent-gold); font-weight: bold; }
-        .current-score { font-size: 3.5rem; font-weight: bold; margin: 0 0 20px 0; }
+        /* 增大皇冠與分數 */
+        .high-score { 
+            font-size: 2.2rem; 
+            color: var(--accent-gold); 
+            font-weight: 800; 
+            display: flex; 
+            align-items: center; 
+            gap: 12px; 
+            text-shadow: 0 2px 4px rgba(0,0,0,0.15); 
+        }
+        
+        .icon-btn { 
+            font-size: 1.8rem; 
+            opacity: 0.8; 
+            cursor: pointer; 
+            color: var(--text-color);
+            transition: transform 0.2s;
+        }
+        .icon-btn:active { transform: rotate(45deg) scale(0.9); }
 
-        /* 遊戲區域 */
+        /* 主容器 */
+        .main-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            max-width: 420px;
+            transform: translateY(-10px); 
+        }
+
+        .score-container { text-align: center; margin-bottom: 15px; margin-top: 60px; }
+        
+        .current-score { 
+            font-size: 4.5rem; 
+            font-weight: 800; 
+            text-shadow: 0 4px 10px rgba(0,0,0,0.1); 
+            line-height: 1; 
+            color: var(--text-color);
+        }
+
+        /* 棋盤 */
         #game-board-container {
             position: relative;
             background: var(--grid-bg);
             padding: 8px;
-            border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            border-radius: 16px;
+            box-shadow: 0 15px 35px rgba(21, 101, 192, 0.2), inset 0 2px 5px rgba(255,255,255,0.05);
+            margin-bottom: 15px;
         }
 
-        canvas#gridCanvas {
-            display: block;
-            border-radius: 6px;
-        }
+        canvas#gridCanvas { display: block; border-radius: 8px; }
 
-        /* 底部方塊區 */
+        /* 底部方塊 */
         .shapes-area {
-            margin-top: 40px;
             width: 100%;
-            max-width: 450px;
-            height: 120px;
+            height: 110px;
             display: flex;
-            justify-content: space-around;
+            justify-content: space-between;
             align-items: center;
+            padding: 0 10px;
         }
 
         .shape-preview {
-            width: 30%;
+            flex: 1;
             height: 100%;
             display: flex;
             justify-content: center;
@@ -82,33 +125,87 @@
 
         canvas.shape-item {
             transition: transform 0.1s, opacity 0.2s;
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
         }
 
-        /* 拖曳代理 (跟隨手指) */
         #drag-proxy {
             position: fixed;
-            pointer-events: none; /* 讓點擊穿透 */
+            pointer-events: none;
             z-index: 1000;
-            opacity: 0.9;
             display: none;
-            filter: drop-shadow(0 15px 15px rgba(0,0,0,0.4));
+            filter: drop-shadow(0 25px 25px rgba(0,0,0,0.3));
         }
 
         /* Game Over */
         #modal-overlay {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.85);
+            background: var(--modal-bg-gradient);
             z-index: 2000;
             display: none;
             flex-direction: column;
             justify-content: center;
             align-items: center;
+            text-align: center;
+            padding-bottom: 50px;
         }
-        .btn-restart {
-            background: #4ecdc4; color: #fff; border: none;
-            padding: 15px 40px; font-size: 1.5rem; border-radius: 50px;
-            font-weight: bold; cursor: pointer;
+
+        .modal-title {
+            font-size: 4rem;
+            font-weight: 900;
+            color: var(--text-blue);
+            margin-bottom: 40px;
+            text-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            letter-spacing: 1px;
+        }
+
+        .modal-label {
+            font-size: 1.1rem;
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: 600;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .modal-score-val {
+            font-size: 4.5rem;
+            font-weight: 800;
+            color: #ffffff;
+            margin-bottom: 30px;
+            text-shadow: 0 3px 8px rgba(0,0,0,0.2);
+            line-height: 1;
+        }
+        
+        .modal-best-val { color: var(--accent-gold); }
+
+        .btn-play {
+            width: 180px;
+            height: 70px;
+            background: linear-gradient(to bottom, var(--btn-green-start), var(--btn-green-end));
+            border: none;
+            border-radius: 35px;
+            cursor: pointer;
+            box-shadow: 0 6px 0 #1e8e33, 0 15px 20px rgba(0,0,0,0.2);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.1s;
+            margin-top: 20px;
+        }
+
+        .btn-play:active {
+            transform: translateY(6px);
+            box-shadow: 0 0 0 #1e8e33, 0 5px 10px rgba(0,0,0,0.1);
+        }
+
+        .play-icon {
+            width: 0;
+            height: 0;
+            border-style: solid;
+            border-width: 18px 0 18px 30px;
+            border-color: transparent transparent transparent #ffffff;
+            transform: translateX(3px);
         }
     </style>
 </head>
@@ -116,53 +213,57 @@
 
     <div class="top-bar">
         <div class="high-score">👑 <span id="best-score">0</span></div>
-        <div>⚙️</div>
+        <div class="icon-btn" onclick="resetGameWithoutSaving()" title="重新開始">🔄</div>
     </div>
 
-    <div class="current-score" id="score">0</div>
+    <div class="main-container">
+        <div class="score-container">
+            <div class="current-score" id="score">0</div>
+        </div>
 
-    <div id="game-board-container">
-        <canvas id="gridCanvas"></canvas>
+        <div id="game-board-container">
+            <canvas id="gridCanvas"></canvas>
+        </div>
+
+        <div class="shapes-area" id="shapes-container"></div>
     </div>
-
-    <div class="shapes-area" id="shapes-container"></div>
 
     <canvas id="drag-proxy"></canvas>
 
     <div id="modal-overlay">
-        <h2 style="font-size: 2rem; color: #ff6b6b; margin-bottom: 20px;">NO MOVES!</h2>
-        <div style="font-size: 3rem; margin-bottom: 30px;" id="final-score">0</div>
-        <button class="btn-restart" onclick="restartGame()">Try Again</button>
+        <div class="modal-title">Game Over</div>
+        <div class="modal-label">Score</div>
+        <div class="modal-score-val" id="final-score">0</div>
+        <div class="modal-label">Best Score</div>
+        <div class="modal-score-val modal-best-val" id="final-best-score">0</div>
+        <button class="btn-play" onclick="restartGame()">
+            <div class="play-icon"></div>
+        </button>
     </div>
 
     <script>
-        // --- 設定 ---
         const CONFIG = {
             gridSize: 8,
-            gap: 3,         // 格子間距
-            borderRadius: 5,
+            gap: 4,
+            borderRadius: 6,
             colors: {
-                empty: '#3b4353',
-                shapes: ['#ef476f', '#ffd166', '#06d6a0', '#118ab2', '#9d4edd', '#ff9f1c', '#3a86ff']
+                empty: '#37474F',
+                shapes: ['#FF3355', '#FFD500', '#29B6F6', '#66BB6A', '#AB47BC', '#FF7043', '#1E88E5']
             }
         };
 
-        // 為了讓手指不擋住方塊，拖曳時方塊會向上偏移這些像素
-        const DRAG_OFFSET_Y = 80; 
+        const DRAG_OFFSET_Y = 100;
 
-        // --- 變數 ---
         let grid = []; 
         let score = 0;
         let bestScore = localStorage.getItem('blockBlastBest') || 0;
         let shapes = [];
-        let cellSize = 0; // 動態計算
+        let cellSize = 0;
 
-        // 拖曳狀態
         let isDragging = false;
         let dragShapeIndex = -1;
-        let dragStartOffset = { x: 0, y: 0 }; // 抓取點相對於方塊中心的偏移
+        let dragStartOffset = { x: 0, y: 0 };
 
-        // DOM
         const canvas = document.getElementById('gridCanvas');
         const ctx = canvas.getContext('2d');
         const proxyCanvas = document.getElementById('drag-proxy');
@@ -170,49 +271,52 @@
         const scoreEl = document.getElementById('score');
         const bestEl = document.getElementById('best-score');
         const modal = document.getElementById('modal-overlay');
+        const finalScoreEl = document.getElementById('final-score');
+        const finalBestScoreEl = document.getElementById('final-best-score');
 
-        // 形狀資料庫
         const SHAPES_DB = [
-            [[1]], [[1,1]], [[1],[1]], [[1,1,1]], [[1],[1],[1]], 
-            [[1,1],[1,1]], // O
-            [[1,0],[1,0],[1,1]], [[1,1,1],[1,0,0]], // L
-            [[0,1],[0,1],[1,1]], [[1,1,1],[0,0,1]], // J
-            [[0,1,0],[1,1,1]], // T
-            [[1,1,0],[0,1,1]], [[0,1,1],[1,1,0]] // Z / S
+            [[1]], 
+            [[1,1]], [[1],[1]], 
+            [[1,1,1]], [[1],[1],[1]], 
+            [[1,1,1,1]], [[1],[1],[1],[1]], 
+            [[1,1,1,1,1]], [[1],[1],[1],[1],[1]],
+            [[1,1],[1,1]], 
+            [[1,1,1],[1,1,1],[1,1,1]], 
+            [[1,1,1],[1,1,1]], [[1,1],[1,1],[1,1]], 
+            [[1,1],[1,0]], [[1,1],[0,1]], [[1,0],[1,1]], [[0,1],[1,1]], 
+            [[1,0],[1,0],[1,1]], [[0,1],[0,1],[1,1]], [[1,1,1],[1,0,0]], [[1,1,1],[0,0,1]], 
+            [[1,1],[1,0],[1,0]], [[1,1],[0,1],[0,1]], [[1,0,0],[1,1,1]], [[0,0,1],[1,1,1]], 
+            [[0,1,0],[1,1,1]], [[1,1,1],[0,1,0]], [[1,0],[1,1],[1,0]], [[0,1],[1,1],[0,1]], 
+            [[1,1,0],[0,1,1]], [[0,1,1],[1,1,0]], [[1,0],[1,1],[0,1]], [[0,1],[1,1],[1,0]]
         ];
 
-        // --- 初始化 ---
         function init() {
             bestEl.innerText = bestScore;
             resizeGame();
+            window.addEventListener('resize', () => { resizeGame(); drawGrid(); });
             
-            // 監聽視窗大小改變
-            window.addEventListener('resize', () => {
-                resizeGame();
-                drawGrid();
-            });
-
-            // 綁定輸入事件
-            window.addEventListener('mousedown', handleStart);
-            window.addEventListener('touchstart', handleStart, {passive: false});
-            window.addEventListener('mousemove', handleMove);
-            window.addEventListener('touchmove', handleMove, {passive: false});
-            window.addEventListener('mouseup', handleEnd);
-            window.addEventListener('touchend', handleEnd);
+            const events = ['mousedown', 'touchstart'];
+            events.forEach(evt => window.addEventListener(evt, handleStart, {passive: false}));
+            const moveEvents = ['mousemove', 'touchmove'];
+            moveEvents.forEach(evt => window.addEventListener(evt, handleMove, {passive: false}));
+            const endEvents = ['mouseup', 'touchend'];
+            endEvents.forEach(evt => window.addEventListener(evt, handleEnd));
 
             restartGame();
         }
 
         function resizeGame() {
-            // RWD: 根據螢幕寬度計算 Canvas 大小
-            const maxWidth = Math.min(window.innerWidth - 40, 400); 
-            // 這裡設定 Canvas 的內部解析度
+            const maxWidth = Math.min(window.innerWidth - 30, 380); 
             canvas.width = maxWidth;
             canvas.height = maxWidth;
-            
-            // 反推每個格子的大小
-            // Width = (Cell * 8) + (Gap * 9)
             cellSize = (canvas.width - (CONFIG.gap * (CONFIG.gridSize + 1))) / CONFIG.gridSize;
+        }
+
+        function resetGameWithoutSaving() {
+            if (score > 0 && !confirm('確定要重新開始嗎？目前的進度將不會保存。')) {
+                return;
+            }
+            restartGame();
         }
 
         function restartGame() {
@@ -224,42 +328,84 @@
             spawnShapes();
         }
 
-        // --- 繪圖 ---
-        function drawRoundedRect(ctx, x, y, size, r, color) {
-            ctx.fillStyle = color;
+        // --- 修復 Bug 的核心：通用圓角矩形繪製函數 ---
+        // 許多瀏覽器不支援 ctx.roundRect，這裡改用原生的路徑寫法
+        function drawRoundedPath(ctx, x, y, size, r) {
             ctx.beginPath();
-            ctx.roundRect(x, y, size, size, r);
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + size - r, y);
+            ctx.quadraticCurveTo(x + size, y, x + size, y + r);
+            ctx.lineTo(x + size, y + size - r);
+            ctx.quadraticCurveTo(x + size, y + size, x + size - r, y + size);
+            ctx.lineTo(x + r, y + size);
+            ctx.quadraticCurveTo(x, y + size, x, y + size - r);
+            ctx.lineTo(x, y + r);
+            ctx.quadraticCurveTo(x, y, x + r, y);
+            ctx.closePath();
+        }
+
+        function drawGlossyBlock(ctx, x, y, size, color) {
+            // 使用通用的路徑繪製
+            drawRoundedPath(ctx, x, y, size, CONFIG.borderRadius);
+            
+            // 填色
+            const gradient = ctx.createLinearGradient(x, y, x + size, y + size);
+            gradient.addColorStop(0, adjustColor(color, 30));
+            gradient.addColorStop(0.5, color);
+            gradient.addColorStop(1, adjustColor(color, -30));
+            ctx.fillStyle = gradient;
             ctx.fill();
+
+            // 高光
+            const shine = ctx.createLinearGradient(x, y, x, y + size);
+            shine.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
+            shine.addColorStop(0.5, 'rgba(255, 255, 255, 0.1)');
+            shine.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctx.fillStyle = shine;
+            ctx.fill();
+
+            // 邊框
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+            ctx.stroke();
+        }
+
+        function adjustColor(color, amount) {
+            return '#' + color.replace(/^#/, '').replace(/../g, color => ('0'+Math.min(255, Math.max(0, parseInt(color, 16) + amount)).toString(16)).substr(-2));
+        }
+
+        function drawEmptyCell(ctx, x, y, size) {
+            ctx.fillStyle = CONFIG.colors.empty;
+            // 使用通用的路徑繪製
+            drawRoundedPath(ctx, x, y, size, CONFIG.borderRadius);
+            ctx.fill();
+            
+            ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
         }
 
         function drawGrid(highlightMatrix = null, highlightRow = -1, highlightCol = -1) {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
             for(let r=0; r<CONFIG.gridSize; r++) {
                 for(let c=0; c<CONFIG.gridSize; c++) {
                     const x = CONFIG.gap + c * (cellSize + CONFIG.gap);
                     const y = CONFIG.gap + r * (cellSize + CONFIG.gap);
-                    
-                    let color = grid[r][c] || CONFIG.colors.empty;
-
-                    // 繪製半透明預覽
+                    const color = grid[r][c];
+                    if (color) {
+                        drawGlossyBlock(ctx, x, y, cellSize, color);
+                    } else {
+                        drawEmptyCell(ctx, x, y, cellSize);
+                    }
                     if(highlightMatrix && highlightRow !== -1) {
                         const hr = r - highlightRow;
                         const hc = c - highlightCol;
-                        if(hr >= 0 && hr < highlightMatrix.length &&
-                           hc >= 0 && hc < highlightMatrix[0].length &&
-                           highlightMatrix[hr][hc] === 1) {
-                            
-                            // 先畫底色
-                            drawRoundedRect(ctx, x, y, cellSize, CONFIG.borderRadius, CONFIG.colors.empty);
-                            // 再疊加半透明預覽色
+                        if(hr >= 0 && hr < highlightMatrix.length && hc >= 0 && hc < highlightMatrix[0].length && highlightMatrix[hr][hc] === 1) {
                             ctx.globalAlpha = 0.5;
-                            drawRoundedRect(ctx, x, y, cellSize, CONFIG.borderRadius, shapes[dragShapeIndex].color);
+                            drawGlossyBlock(ctx, x, y, cellSize, shapes[dragShapeIndex].color);
                             ctx.globalAlpha = 1.0;
-                            continue;
                         }
                     }
-                    drawRoundedRect(ctx, x, y, cellSize, CONFIG.borderRadius, color);
                 }
             }
         }
@@ -269,73 +415,51 @@
             const gap = CONFIG.gap * scale;
             const rows = matrix.length;
             const cols = matrix[0].length;
-            
-            targetCanvas.width = gap + cols * (size + gap);
-            targetCanvas.height = gap + rows * (size + gap);
-            
+            const padding = 4;
+            targetCanvas.width = (gap + cols * (size + gap)) + padding * 2;
+            targetCanvas.height = (gap + rows * (size + gap)) + padding * 2;
             const tCtx = targetCanvas.getContext('2d');
+            tCtx.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
             for(let r=0; r<rows; r++) {
                 for(let c=0; c<cols; c++) {
                     if(matrix[r][c]) {
-                        drawRoundedRect(tCtx, 
-                            gap + c * (size + gap), 
-                            gap + r * (size + gap), 
-                            size, CONFIG.borderRadius * scale, color);
+                        drawGlossyBlock(tCtx, padding + gap + c * (size + gap), padding + gap + r * (size + gap), size, color);
                     }
                 }
             }
         }
 
-        // --- 核心修復：輸入處理 ---
-        
         function getEventPos(e) {
-            if(e.touches && e.touches.length > 0) {
-                return { x: e.touches[0].clientX, y: e.touches[0].clientY };
-            } else if (e.changedTouches && e.changedTouches.length > 0) { // 用於 touchend
-                return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
-            }
+            if(e.touches && e.touches.length > 0) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            else if (e.changedTouches && e.changedTouches.length > 0) return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
             return { x: e.clientX, y: e.clientY };
         }
 
         function handleStart(e) {
-            // 檢查是否點擊到底部的候選方塊
             const target = e.target.closest('.shape-item');
             if(!target) return;
-            
             const index = parseInt(target.dataset.index);
             if(shapes[index].used) return;
-
             e.preventDefault();
             isDragging = true;
             dragShapeIndex = index;
-
             const pos = getEventPos(e);
             const shape = shapes[index];
-
-            // 繪製 1:1 大小的拖曳代理
             drawShapeToCanvas(proxyCanvas, shape.matrix, shape.color, 1.0);
             proxyCanvas.style.display = 'block';
-
-            // 設定初始位置 (讓方塊中心對齊手指)
-            const rect = proxyCanvas.getBoundingClientRect(); // 取得剛畫好的大小
+            const rect = proxyCanvas.getBoundingClientRect();
             dragStartOffset.x = rect.width / 2;
             dragStartOffset.y = rect.height / 2;
-            
             updateProxyPos(pos.x, pos.y);
-
-            // 隱藏原本底部的方塊
             target.style.opacity = 0;
         }
 
         function handleMove(e) {
             if(!isDragging) return;
-            e.preventDefault(); // 防止手機滾動
+            e.preventDefault();
             const pos = getEventPos(e);
             updateProxyPos(pos.x, pos.y);
-
-            // 判定網格位置
             const gridPos = getGridPosFromProxy();
-            
             if(gridPos && canPlace(shapes[dragShapeIndex].matrix, gridPos.r, gridPos.c)) {
                 drawGrid(shapes[dragShapeIndex].matrix, gridPos.r, gridPos.c);
             } else {
@@ -345,62 +469,42 @@
 
         function handleEnd(e) {
             if(!isDragging) return;
-            
             const gridPos = getGridPosFromProxy();
             const shape = shapes[dragShapeIndex];
             const originalEl = document.querySelector(`.shape-item[data-index="${dragShapeIndex}"]`);
-
             if(gridPos && canPlace(shape.matrix, gridPos.r, gridPos.c)) {
-                // 放置成功
                 placeShape(shape, gridPos.r, gridPos.c);
                 shape.used = true;
-                originalEl.parentElement.innerHTML = ''; // 移除底部顯示
-                
+                originalEl.parentElement.innerHTML = ''; 
                 if(shapes.every(s => s.used)) spawnShapes();
                 else checkGameOver();
             } else {
-                // 放置失敗，彈回
                 originalEl.style.opacity = 1;
                 drawGrid();
             }
-
             isDragging = false;
             proxyCanvas.style.display = 'none';
         }
 
         function updateProxyPos(x, y) {
-            // 方塊跟隨手指，並向上偏移 DRAG_OFFSET_Y
             proxyCanvas.style.left = (x - dragStartOffset.x) + 'px';
             proxyCanvas.style.top = (y - dragStartOffset.y - DRAG_OFFSET_Y) + 'px';
         }
 
-        // --- 關鍵修復：座標換算 ---
         function getGridPosFromProxy() {
-            // 取得目前拖曳方塊(Proxy)在螢幕上的位置
             const proxyRect = proxyCanvas.getBoundingClientRect();
             const gridRect = canvas.getBoundingClientRect();
-
-            // 計算 Proxy 左上角相對於 Grid 左上角的距離 (像素)
-            // 這裡不需要考慮 DRAG_OFFSET_Y，因為 proxyRect 已經是視覺上的實際位置
             const relativeX = proxyRect.left - gridRect.left;
             const relativeY = proxyRect.top - gridRect.top;
-
-            // 計算縮放比例 (解決 CSS 寬度與 Canvas 解析度不一致的問題)
             const scaleX = canvas.width / gridRect.width;
             const scaleY = canvas.height / gridRect.height;
-
-            // 換算回 Canvas 內部的像素座標
             const canvasX = relativeX * scaleX;
             const canvasY = relativeY * scaleY;
-
-            // 換算成格子座標 (使用 round 來容許誤差，讓操作更順手)
             const col = Math.round((canvasX - CONFIG.gap) / (cellSize + CONFIG.gap));
             const row = Math.round((canvasY - CONFIG.gap) / (cellSize + CONFIG.gap));
-
             return { r: row, c: col };
         }
 
-        // --- 遊戲邏輯 ---
         function spawnShapes() {
             shapes = [];
             shapesContainer.innerHTML = '';
@@ -408,15 +512,12 @@
                 const matrix = SHAPES_DB[Math.floor(Math.random() * SHAPES_DB.length)];
                 const color = CONFIG.colors.shapes[Math.floor(Math.random() * CONFIG.colors.shapes.length)];
                 shapes.push({ matrix, color, used: false });
-
                 const wrapper = document.createElement('div');
                 wrapper.className = 'shape-preview';
-                
                 const canvasEl = document.createElement('canvas');
                 canvasEl.className = 'shape-item';
-                canvasEl.dataset.index = i; // 標記索引方便查找
-                drawShapeToCanvas(canvasEl, matrix, color, 0.6); // 預覽縮小
-
+                canvasEl.dataset.index = i; 
+                drawShapeToCanvas(canvasEl, matrix, color, 0.55); 
                 wrapper.appendChild(canvasEl);
                 shapesContainer.appendChild(wrapper);
             }
@@ -429,10 +530,7 @@
                     if(matrix[i][j] === 1) {
                         const tr = r + i;
                         const tc = c + j;
-                        // 邊界與碰撞檢查
-                        if(tr < 0 || tr >= CONFIG.gridSize || tc < 0 || tc >= CONFIG.gridSize || grid[tr][tc]) {
-                            return false;
-                        }
+                        if(tr < 0 || tr >= CONFIG.gridSize || tc < 0 || tc >= CONFIG.gridSize || grid[tr][tc]) return false;
                     }
                 }
             }
@@ -451,60 +549,37 @@
             }
             score += placedCount;
             updateScore(score);
-            
-            // 延遲一點點檢查消除，讓玩家看到放置瞬間
-            requestAnimationFrame(() => {
-                checkLines();
-                drawGrid();
-            });
+            requestAnimationFrame(() => { checkLines(); drawGrid(); });
         }
 
         function checkLines() {
             let rowsToClear = [], colsToClear = [];
-            
-            // 檢查橫列
-            for(let r=0; r<CONFIG.gridSize; r++) {
-                if(grid[r].every(v => v)) rowsToClear.push(r);
-            }
-            // 檢查直行
-            for(let c=0; c<CONFIG.gridSize; c++) {
-                if(grid.every(row => row[c])) colsToClear.push(c);
-            }
-
+            for(let r=0; r<CONFIG.gridSize; r++) if(grid[r].every(v => v)) rowsToClear.push(r);
+            for(let c=0; c<CONFIG.gridSize; c++) if(grid.every(row => row[c])) colsToClear.push(c);
             if(rowsToClear.length === 0 && colsToClear.length === 0) return;
-
-            // 消除
             rowsToClear.forEach(r => grid[r].fill(null));
-            colsToClear.forEach(c => {
-                for(let r=0; r<CONFIG.gridSize; r++) grid[r][c] = null;
-            });
-
-            // 簡單計分
+            colsToClear.forEach(c => { for(let r=0; r<CONFIG.gridSize; r++) grid[r][c] = null; });
             const lines = rowsToClear.length + colsToClear.length;
-            const points = lines * 100 * lines; // Combo 加成
+            const points = lines * 100 * lines; 
             updateScore(score + points);
         }
 
         function checkGameOver() {
             const remaining = shapes.filter(s => !s.used);
             if(remaining.length === 0) return;
-
             let canMove = false;
             for(let s of remaining) {
                 for(let r=0; r<CONFIG.gridSize; r++) {
                     for(let c=0; c<CONFIG.gridSize; c++) {
-                        if(canPlace(s.matrix, r, c)) {
-                            canMove = true;
-                            break;
-                        }
+                        if(canPlace(s.matrix, r, c)) { canMove = true; break; }
                     }
                     if(canMove) break;
                 }
                 if(canMove) break;
             }
-
             if(!canMove) {
-                document.getElementById('final-score').innerText = score;
+                finalScoreEl.innerText = score;
+                finalBestScoreEl.innerText = bestScore;
                 modal.style.display = 'flex';
             }
         }
@@ -519,9 +594,7 @@
             }
         }
 
-        // 啟動
         init();
-
     </script>
 </body>
 </html>
