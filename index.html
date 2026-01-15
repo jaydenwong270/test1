@@ -19,6 +19,7 @@
             --section-line: #00d2ff;
             
             /* 白天標題顏色 (螢光藍) */
+            
             --title-color: #0072ff; 
         }
 
@@ -98,6 +99,7 @@
             text-shadow: 0 0 20px var(--title-color); /* 發光範圍也稍微加大 */
             background: none;
             -webkit-background-clip: unset;
+            background-clip: unset;  /* <-- 加上這一行 */
             -webkit-text-fill-color: initial;
             transition: color 0.3s ease, text-shadow 0.3s ease;
         }
