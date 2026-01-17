@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Creative Hand Particle System</title>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background-color: #000; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: white; }
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        
+        /* UI Panel */
+        #ui-panel {
+            position: absolute; top: 20px; right: 20px; width: 280px;
+            background: rgba(20, 20, 30, 0.7); backdrop-filter: blur(10px);
+            border-radius: 12px; padding: 20px; z-index: 10;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            transition: opacity 0.3s;
+        }
+        .ui-group { margin-bottom: 15px; }
+        .ui-label { font-size: 12px; color: #aaa; margin-bottom: 5px; display: block; letter-spacing: 1px; text-transform: uppercase; }
+        
+        button {
+            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+            color: white; padding: 8px 12px; border-radius: 6px; cursor: pointer;
+            margin: 2px; font-size: 12px; transition: background 0.2s;
+        }
+        button:hover { background: rgba(255,255,255,0.25); }
+        button.active { background: #00d2ff; color: #000; border-color: #00d2ff; }
+        
+        input[type="range"] { width: 100%; accent-color: #00d2ff; }
+        input[type="color"] { border: none; width: 100%; height: 30px; cursor: pointer; background: none; }
+
+        /* Status & Camera Preview */
+        #status-bar {
+            position: absolute; bottom: 20px; left: 20px; z-index: 10;
+            background: rgba(0,0,0,0.5); padding: 10px; border-radius: 8px;
+            font-family: monospace; font-size: 12px; pointer-events: none;
+        }
+        #cam-preview {
+            position: absolute; bottom: 20px; right: 20px; width: 160px; height: 120px;
+            background: #222; border-radius: 8px; z-index: 10;
+            transform: scaleX(-1); /* Mirror */
+            border: 2px solid rgba(255,255,255,0.1);
+            object-fit: cover;
+        }
+        
+        /* Permission overlay */
+        #overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); z-index: 999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            text-align: center;
+        }
+        .hidden { display: none !important; }
+        h1 { margin-bottom: 10px; font-weight: 300; letter-spacing: 2px; }
+        #loading-text { color: #00d2ff; animation: pulse 1.5s infinite; margin-top: 20px;}
+        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+    </style>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+    <div id="overlay">
+        <h1>CREATIVE PARTICLE HANDS</h1>
+        <p>Allow camera access to control the particles.</p>
+        <button id="start-btn" style="font-size: 16px; padding: 10px 30px; margin-top: 20px;">START EXPERIENCE</button>
+        <div id="loading-text" class="hidden">Initializing AI & WebGL...</div>
+        <div id="error-msg" style="color: #ff4444; margin-top: 20px;" class="hidden"></div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <div id="ui-panel" class="hidden">
+        <div class="ui-group">
+            <span class="ui-label">Shapes</span>
+            <div id="shape-buttons">
+                </div>
+        </div>
+        <div class="ui-group">
+            <span class="ui-label">Particle Color</span>
+            <input type="color" id="color-picker" value="#00d2ff">
+        </div>
+        <div class="ui-group">
+            <span class="ui-label">Gesture Sensitivity</span>
+            <input type="range" id="sensitivity-slider" min="0.1" max="2.0" step="0.1" value="1.0">
+        </div>
+        <button id="reset-btn" style="width: 100%">Reset Physics</button>
+    </div>
+
+    <div id="status-bar" class="hidden">
+        <div>SYS: <span id="sys-status">Ready</span></div>
+        <div>HANDS: <span id="hand-count">0</span></div>
+        <div>EVENT: <span id="last-event">-</span></div>
+    </div>
+
+    <video id="cam-preview" class="hidden" playsinline></video>
+
+    <script>
+        /**
+         * =========================================================================
+         * SECTION 1: GAME RULES / INTERACTION CONFIGURATION
+         * This object maps normalized hand events to game/visual actions.
+         * Modify this section to create different games (e.g., Shooter, Rhythm).
+         * =========================================================================
+         */
+        const GAME_RULES = {
+            // Configuration
+            sensitivity: 1.0,
+            pinchThreshold: 0.05, // Distance between thumb and index
+            openThreshold: 0.8,   // Normalized openness
+
+            // Event Mapping: Event Name -> Action Function
+            'PINCH_LEFT':   (ctx) => ctx.actions.switchShape(-1), // Prev Shape
+            'PINCH_RIGHT':  (ctx) => ctx.actions.switchShape(1),  // Next Shape
+            'OPEN_BOTH':    (ctx) => ctx.actions.explode(2.0),    // Strong Expand
+            'CLOSE_BOTH':   (ctx) => ctx.actions.implode(2.0),    // Strong Contract
+            'OPEN_ONE':     (ctx) => ctx.actions.explode(0.8),    // Gentle Expand
+            'CLOSE_ONE':    (ctx) => ctx.actions.implode(0.8),    // Gentle Contract
+            'NO_HANDS':     (ctx) => ctx.actions.idle(),          // Drift
+            'MOVE_HANDS':   (ctx) => ctx.actions.attract(ctx.hands) // Follow hands
+        };
+
+        /**
+         * =========================================================================
+         * SECTION 2: CORE SYSTEM (Three.js & Particle Logic)
+         * =========================================================================
+         */
+        
+        // --- Global State ---
+        const STATE = {
+            width: window.innerWidth,
+            height: window.innerHeight,
+            particleCount: 25000,
+            currentShapeIndex: 0,
+            color: new THREE.Color(0x00d2ff),
+            handsDetected: 0,
+            handData: [], // Stores smoothed landmarks
+            lastPinchTime: 0
+        };
+
+        // --- Three.js Setup ---
+        const scene = new THREE.Scene();
+        // Fog for depth
+        scene.fog = new THREE.FogExp2(0x000000, 0.002);
+
+        const camera = new THREE.PerspectiveCamera(75, STATE.width / STATE.height, 0.1, 1000);
+        camera.position.z = 50;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(STATE.width, STATE.height);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // --- Particles ---
+        // We use BufferGeometry for performance with raw TypedArrays
+        const geometry = new THREE.BufferGeometry();
+        
+        // Attributes
+        const positions = new Float32Array(STATE.particleCount * 3);
+        const targets = new Float32Array(STATE.particleCount * 3); // Destination shape
+        const velocities = new Float32Array(STATE.particleCount * 3); // Physics velocity
+        
+        // Init Random Positions
+        for (let i = 0; i < STATE.particleCount * 3; i++) {
+            positions[i] = (Math.random() - 0.5) * 200;
+            targets[i] = positions[i];
+            velocities[i] = 0;
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+        // Create a soft circle texture programmatically
+        const getSprite = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32; canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(16,16,0,16,16,16);
+            grad.addColorStop(0, 'rgba(255,255,255,1)');
+            grad.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0,0,32,32);
+            const texture = new THREE.Texture(canvas);
+            texture.needsUpdate = true;
+            return texture;
+        };
+
+        const material = new THREE.PointsMaterial({
+            size: 0.4,
+            map: getSprite(),
+            transparent: true,
+            opacity: 0.8,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            color: STATE.color
+        });
+
+        const particles = new THREE.Points(geometry, material);
+        scene.add(particles);
+
+        // --- Shape Generators ---
+        // Mathematical functions to populate 'targets' array
+        const SHAPES = [
+            { name: 'Heart', gen: (i) => {
+                const t = Math.random() * Math.PI * 2;
+                // Distribute points inside volume roughly
+                const r = Math.sqrt(Math.random()) * 15; 
+                // Heart formula variant
+                const x = 16 * Math.pow(Math.sin(t), 3);
+                const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
+                // Extrude z slightly
+                const z = (Math.random() - 0.5) * 10;
+                return [x * (r/15), y * (r/15), z];
+            }},
+            { name: 'Saturn', gen: (i) => {
+                const isRing = Math.random() > 0.4;
+                if (isRing) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const r = 20 + Math.random() * 8;
+                    return [Math.cos(angle) * r, (Math.random()-0.5)*2, Math.sin(angle) * r];
+                } else {
+                    // Sphere
+                    const u = Math.random(); const v = Math.random();
+                    const theta = 2 * Math.PI * u;
+                    const phi = Math.acos(2 * v - 1);
+                    const r = 12 * Math.cbrt(Math.random()); 
+                    return [r * Math.sin(phi) * Math.cos(theta), r * Math.sin(phi) * Math.sin(theta), r * Math.cos(phi)];
+                }
+            }},
+            { name: 'Flower', gen: (i) => {
+                const u = Math.random() * Math.PI * 2; // angle
+                const v = Math.random() * Math.PI;
+                const r = 15 + 5 * Math.sin(5 * u) * Math.sin(5 * v);
+                return [r * Math.sin(v) * Math.cos(u), r * Math.sin(v) * Math.sin(u), (Math.random()-0.5)*5];
+            }},
+            { name: 'Fireworks', gen: (i) => {
+                // Just random sphere burst
+                const u = Math.random(); const v = Math.random();
+                const theta = 2 * Math.PI * u;
+                const phi = Math.acos(2 * v - 1);
+                const r = 40 * Math.cbrt(Math.random());
+                return [r * Math.sin(phi) * Math.cos(theta), r * Math.sin(phi) * Math.sin(theta), r * Math.cos(phi)];
+            }},
+            { name: 'Spiral', gen: (i) => {
+                const t = i * 0.05;
+                const r = t * 0.02;
+                return [r * Math.cos(t), t * 0.5 - 30, r * Math.sin(t)];
+            }}
+        ];
+
+        function generateShape(shapeIndex) {
+            const generator = SHAPES[shapeIndex].gen;
+            for (let i = 0; i < STATE.particleCount; i++) {
+                const [x, y, z] = generator(i);
+                targets[i * 3] = x;
+                targets[i * 3 + 1] = y;
+                targets[i * 3 + 2] = z;
+            }
+            updateUIButtons();
+        }
+
+        // --- Interaction Logic (Actions) ---
+        // These are called by the Event Mapper
+        const actions = {
+            currentForce: 0,
+            
+            switchShape: (dir) => {
+                const now = Date.now();
+                if (now - STATE.lastPinchTime < 1000) return; // Debounce
+                STATE.lastPinchTime = now;
+                
+                STATE.currentShapeIndex = (STATE.currentShapeIndex + dir + SHAPES.length) % SHAPES.length;
+                generateShape(STATE.currentShapeIndex);
+                document.getElementById('last-event').innerText = "SWITCH SHAPE";
+                
+                // Visual Flash
+                material.color.setHex(0xffffff);
+                setTimeout(() => material.color.set(STATE.color), 300);
+            },
+
+            explode: (intensity) => {
+                actions.currentForce = 0.5 * intensity * GAME_RULES.sensitivity;
+                document.getElementById('last-event').innerText = "EXPAND";
+            },
+
+            implode: (intensity) => {
+                actions.currentForce = -0.5 * intensity * GAME_RULES.sensitivity;
+                document.getElementById('last-event').innerText = "CONTRACT";
+            },
+
+            attract: (hands) => {
+                // Logic handled in physics loop using hand positions
+                document.getElementById('last-event').innerText = "TRACKING";
+            },
+
+            idle: () => {
+                actions.currentForce *= 0.95; // Decay force
+                document.getElementById('last-event').innerText = "IDLE";
+            }
+        };
+
+        // --- Physics Loop ---
+        function updateParticles() {
+            const positions = geometry.attributes.position.array;
+            
+            // Mouse/Hand interaction vector
+            // If hands are detected, we calculate center of hands
+            let centerX = 0, centerY = 0, centerZ = 0;
+            if (STATE.handsDetected > 0) {
+                // Map hand coordinates (0..1) to World Coordinates (-Aspect..Aspect)
+                // Roughly mapping screen space to z=0 plane in 3D
+                STATE.handData.forEach(h => {
+                    centerX += (h.x - 0.5) * 50; 
+                    centerY += -(h.y - 0.5) * 40; // Invert Y
+                });
+                centerX /= STATE.handsDetected;
+                centerY /= STATE.handsDetected;
+            }
+
+            for (let i = 0; i < STATE.particleCount; i++) {
+                const idx = i * 3;
+                
+                // 1. Seek Target (Shape formation)
+                const tx = targets[idx];
+                const ty = targets[idx + 1];
+                const tz = targets[idx + 2];
+
+                const px = positions[idx];
+                const py = positions[idx + 1];
+                const pz = positions[idx + 2];
+
+                // Spring force towards target
+                const ax = (tx - px) * 0.02; // Stiffness
+                const ay = (ty - py) * 0.02;
+                const az = (tz - pz) * 0.02;
+
+                velocities[idx]     += ax;
+                velocities[idx + 1] += ay;
+                velocities[idx + 2] += az;
+
+                // 2. Hand Interaction (Explode/Implode/MouseFollow)
+                // Add noise/turbulence
+                velocities[idx] += (Math.random() - 0.5) * 0.05; 
+                velocities[idx+1] += (Math.random() - 0.5) * 0.05; 
+
+                if (actions.currentForce !== 0) {
+                    // Vector from center (0,0,0) or hand center to particle
+                    const dx = px - centerX;
+                    const dy = py - centerY;
+                    const dz = pz - centerZ;
+                    const distSq = dx*dx + dy*dy + dz*dz;
+                    const dist = Math.sqrt(distSq);
+                    
+                    if (dist > 0.1) {
+                        // F = force / dist
+                        const f = actions.currentForce * 50 / (dist + 1);
+                        velocities[idx]     += (dx / dist) * f;
+                        velocities[idx + 1] += (dy / dist) * f;
+                        velocities[idx + 2] += (dz / dist) * f;
+                    }
+                }
+
+                // 3. Apply Velocity & Damping
+                positions[idx]     += velocities[idx];
+                positions[idx + 1] += velocities[idx + 1];
+                positions[idx + 2] += velocities[idx + 2];
+
+                velocities[idx]     *= 0.92; // Friction
+                velocities[idx + 1] *= 0.92;
+                velocities[idx + 2] *= 0.92;
+            }
+
+            geometry.attributes.position.needsUpdate = true;
+            
+            // Rotate entire system slowly
+            particles.rotation.y += 0.002;
+        }
+
+        // --- Render Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            updateParticles();
+            renderer.render(scene, camera);
+        }
+
+        /**
+         * =========================================================================
+         * SECTION 3: COMPUTER VISION (MediaPipe)
+         * =========================================================================
+         */
+        
+        const videoElement = document.getElementById('cam-preview');
+        let handsResults = null;
+
+        function onResults(results) {
+            handsResults = results;
+            processGestures();
+        }
+
+        const hands = new Hands({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+        }});
+
+        hands.setOptions({
+            maxNumHands: 2,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        hands.onResults(onResults);
+
+        // Camera setup
+        const startCamera = () => {
+            const camera = new Camera(videoElement, {
+                onFrame: async () => {
+                    await hands.send({image: videoElement});
+                },
+                width: 320,
+                height: 240
+            });
+            camera.start()
+            .then(() => {
+                document.getElementById('overlay').classList.add('hidden');
+                document.getElementById('ui-panel').classList.remove('hidden');
+                document.getElementById('status-bar').classList.remove('hidden');
+                document.getElementById('cam-preview').classList.remove('hidden');
+                document.getElementById('sys-status').innerText = "Running";
+            })
+            .catch(err => {
+                document.getElementById('loading-text').classList.add('hidden');
+                document.getElementById('error-msg').classList.remove('hidden');
+                document.getElementById('error-msg').innerText = "Camera Access Denied. Please enable camera and refresh.";
+                console.error(err);
+            });
+        };
+
+        // --- Gesture Analysis & Event Emission ---
+        // Smoothing variables (EMA)
+        let smoothedOpenness = [0, 0]; 
+        let smoothedPinch = [1, 1]; 
+
+        function distance(a, b) {
+            return Math.hypot(a.x - b.x, a.y - b.y);
+        }
+
+        function processGestures() {
+            if (!handsResults || !handsResults.multiHandLandmarks) return;
+
+            const landmarks = handsResults.multiHandLandmarks;
+            STATE.handsDetected = landmarks.length;
+            document.getElementById('hand-count').innerText = STATE.handsDetected;
+
+            STATE.handData = []; // Reset for physics usage
+
+            if (STATE.handsDetected === 0) {
+                GAME_RULES['NO_HANDS']({ actions });
+                return;
+            }
+
+            let isOpenL = false, isOpenR = false;
+            let isPinchL = false, isPinchR = false;
+
+            for (let i = 0; i < landmarks.length; i++) {
+                const hand = landmarks[i];
+                const handedness = handsResults.multiHandedness[i].label; // Left or Right
+
+                // 1. Store center pos for physics attraction
+                STATE.handData.push({x: hand[9].x, y: hand[9].y}); // Landmark 9 is middle finger mcp (roughly palm center)
+
+                // 2. Calculate Openness
+                // Sum distances of tips (4,8,12,16,20) from wrist (0)
+                let totalDist = 0;
+                [4, 8, 12, 16, 20].forEach(tip => {
+                    totalDist += distance(hand[0], hand[tip]);
+                });
+                // Normalize roughly (0.8 to 2.5 is typical range sum, divide to get 0..1)
+                let openness = Math.min(1, Math.max(0, (totalDist - 0.8) / 1.5));
+                
+                // EMA Smoothing
+                smoothedOpenness[i] = smoothedOpenness[i] * 0.7 + openness * 0.3;
+
+                // 3. Calculate Pinch (Thumb Tip 4 to Index Tip 8)
+                let pinchDist = distance(hand[4], hand[8]);
+                smoothedPinch[i] = smoothedPinch[i] * 0.7 + pinchDist * 0.3;
+
+                // 4. Determine Boolean States
+                const isOpen = smoothedOpenness[i] > GAME_RULES.openThreshold;
+                const isPinch = smoothedPinch[i] < GAME_RULES.pinchThreshold;
+
+                if (i === 0) { isOpenL = isOpen; isPinchL = isPinch; }
+                else { isOpenR = isOpen; isPinchR = isPinch; }
+                
+                // Trigger Individual Pinch Events immediately
+                if (isPinch) {
+                    const eventName = (handedness === 'Left') ? 'PINCH_LEFT' : 'PINCH_RIGHT'; // Note: Mirroring might swap these visually
+                    // We just map index 0 to Left logic and 1 to Right logic for simplicity in this demo
+                    if(i===0 && isPinch) GAME_RULES['PINCH_LEFT']({ actions });
+                    if(i===1 && isPinch) GAME_RULES['PINCH_RIGHT']({ actions });
+                }
+            }
+
+            // 5. Fire Combined Events
+            if (STATE.handsDetected === 2) {
+                if (isOpenL && isOpenR) GAME_RULES['OPEN_BOTH']({ actions });
+                else if (!isOpenL && !isOpenR) GAME_RULES['CLOSE_BOTH']({ actions });
+                else GAME_RULES['MOVE_HANDS']({ actions });
+            } else if (STATE.handsDetected === 1) {
+                if (isOpenL) GAME_RULES['OPEN_ONE']({ actions });
+                else GAME_RULES['CLOSE_ONE']({ actions });
+                GAME_RULES['MOVE_HANDS']({ actions }); // Also track position
+            }
+        }
+
+        /**
+         * =========================================================================
+         * SECTION 4: UI & EVENTS
+         * =========================================================================
+         */
+        
+        // Start Button
+        document.getElementById('start-btn').addEventListener('click', () => {
+            document.getElementById('start-btn').classList.add('hidden');
+            document.getElementById('loading-text').classList.remove('hidden');
+            startCamera();
+            generateShape(0); // Init Shape
+            animate(); // Start Loop
+        });
+
+        // Shape Buttons
+        const shapeContainer = document.getElementById('shape-buttons');
+        function updateUIButtons() {
+            shapeContainer.innerHTML = '';
+            SHAPES.forEach((s, i) => {
+                const btn = document.createElement('button');
+                btn.innerText = s.name;
+                if (i === STATE.currentShapeIndex) btn.classList.add('active');
+                btn.onclick = () => {
+                    STATE.currentShapeIndex = i;
+                    generateShape(i);
+                };
+                shapeContainer.appendChild(btn);
+            });
+        }
+
+        // Color Picker
+        document.getElementById('color-picker').addEventListener('input', (e) => {
+            STATE.color.set(e.target.value);
+            material.color.set(STATE.color);
+        });
+
+        // Sensitivity
+        document.getElementById('sensitivity-slider').addEventListener('input', (e) => {
+            GAME_RULES.sensitivity = parseFloat(e.target.value);
+        });
+
+        // Reset
+        document.getElementById('reset-btn').addEventListener('click', () => {
+            for(let i=0; i<STATE.particleCount*3; i++) velocities[i] = 0;
+            actions.currentForce = 0;
+        });
+
+        // Window Resize
+        window.addEventListener('resize', () => {
+            STATE.width = window.innerWidth;
+            STATE.height = window.innerHeight;
+            camera.aspect = STATE.width / STATE.height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(STATE.width, STATE.height);
+        });
+
+    </script>
+</body>
+</html>

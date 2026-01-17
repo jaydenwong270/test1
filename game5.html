@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <title>Stark Industries Combat Sim</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        body { margin: 0; padding: 0; background-color: #050505; color: #ffd700; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
+        
+        /* 背景網格特效，模擬 JARVIS 介面 */
+        #game-container { 
+            position: relative; width: 100vw; height: 100vh; 
+            display: flex; justify-content: center; align-items: center; 
+            background: radial-gradient(circle, #2a0000 0%, #000000 90%);
+        }
+        
+        canvas { position: absolute; max-width: 100%; max-height: 100%; }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+        
+        #damage-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 0, 0, 0.5); z-index: 15; display: none; pointer-events: none; transition: opacity 0.5s ease-out; }
+
+        /* HUD 面板：改為鋼鐵人紅金配色 */
+        .hud-panel { 
+            position: absolute; top: 20px; 
+            background: rgba(60, 0, 0, 0.8); /* 深紅底 */
+            border: 2px solid #ffd700; /* 金邊 */
+            border-left: 5px solid #ffd700;
+            padding: 10px 25px; 
+            border-radius: 2px 15px 2px 15px; /* 裝甲切角 */
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.3); 
+            font-weight: bold; font-size: 24px; color: #ffd700;
+            display: flex; align-items: center; gap: 10px;
+            font-family: 'Courier New', monospace;
+        }
+
+        #score-display { left: 50%; transform: translateX(-50%); border-color: #00ffff; color: #00ffff; /* 中間維持反應爐藍 */ }
+        #timer-display { left: 30px; }
+        #ammo-display { right: 30px; top: 80px; color: #fff; background: rgba(100, 0, 0, 0.8); }
+        #health-display { position: absolute; top: 20px; right: 30px; font-size: 32px; filter: drop-shadow(0 0 5px red); }
+        #difficulty-display { position: absolute; bottom: 20px; left: 20px; font-size: 18px; color: #ffd700; opacity: 0.8; font-family: monospace; }
+        
+        #reload-msg { 
+            position: absolute; top: 65%; left: 50%; transform: translateX(-50%); 
+            font-size: 28px; font-weight: bold; color: #00ffff; 
+            text-shadow: 0 0 10px cyan; letter-spacing: 3px;
+            background: rgba(0, 0, 0, 0.7); padding: 5px 30px; 
+            border: 1px solid #00ffff; display: none; 
+        }
+
+        .fullscreen-overlay { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(10, 0, 0, 0.95); z-index: 20; 
+            display: flex; justify-content: center; align-items: center; 
+            flex-direction: column; pointer-events: auto; text-align: center; 
+            background-image: linear-gradient(rgba(255, 215, 0, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 215, 0, 0.05) 1px, transparent 1px);
+            background-size: 50px 50px;
+        }
+
+        #start-screen { display: flex; }
+        #game-over-screen { display: none; }
+
+        h1 { 
+            font-size: 56px; color: #ffd700; margin-bottom: 10px; 
+            text-shadow: 0 0 20px #ff0000; text-transform: uppercase; letter-spacing: 5px; 
+            font-family: Impact, sans-serif;
+            background: linear-gradient(to bottom, #ffd700, #b8860b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        h3 { color: #00ffff; letter-spacing: 3px; font-weight: normal; margin-top: 0; margin-bottom: 30px; font-size: 18px; }
+
+        .rules-box { 
+            background: rgba(40, 0, 0, 0.6); 
+            border: 2px solid #b8860b; 
+            padding: 30px; 
+            border-radius: 20px; 
+            margin-bottom: 30px; 
+            text-align: left; 
+            line-height: 1.8; 
+            font-size: 18px; 
+            color: #eee; 
+            max-width: 750px; 
+            box-shadow: 0 0 30px rgba(184, 134, 11, 0.2);
+        }
+        
+        .highlight { color: #00ffff; font-weight: bold; }
+        .stark-text { color: #ffd700; font-style: italic; }
+
+        .btn-group { display: flex; gap: 30px; margin-top: 20px; }
+        
+        /* 鋼鐵人風格按鈕 */
+        button { 
+            padding: 15px 40px; font-size: 24px; 
+            background: linear-gradient(to bottom, #d90000, #8b0000); 
+            color: #ffd700; border: 2px solid #ffd700; 
+            cursor: pointer; border-radius: 5px; 
+            font-weight: bold; box-shadow: 0 5px 15px rgba(0,0,0,0.5); 
+            transition: 0.2s; text-transform: uppercase;
+            font-family: 'Arial Black', sans-serif;
+        }
+        button:hover { background: linear-gradient(to bottom, #ff3333, #a00000); transform: scale(1.05); box-shadow: 0 0 20px #ffd700; }
+        
+        button.hard-btn { 
+            background: linear-gradient(to bottom, #222, #000); 
+            border: 2px solid #ff0000; color: #ff3333; 
+        }
+        button.hard-btn:hover { background: #333; box-shadow: 0 0 20px #ff0000; }
+
+        #loading { position: absolute; z-index: 30; font-size: 24px; color: #00ffff; background: rgba(0,0,0,0.9); padding: 30px; border: 1px solid #00ffff; border-radius: 10px; text-align: center; }
+        
+        #result-quote {
+            font-size: 22px; color: #fff; margin: 20px 0; font-style: italic; max-width: 600px; line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <video id="input-video" style="display: none;"></video>
+    <canvas id="output-canvas"></canvas>
+    <div id="loading">JARVIS 系統連線中...<br>初始化手部追蹤模組...</div>
+
+    <div id="ui-layer">
+        <div id="timer-display" class="hud-panel">⏱️ 90</div>
+        <div id="score-display" class="hud-panel">TARGETS: 0</div>
+        <div id="health-display">❤️❤️❤️❤️❤️</div>
+        <div id="ammo-display" class="hud-panel">REPULSOR: 30</div>
+        <div id="difficulty-display">PROTOCOL: --</div>
+        <div id="reload-msg">⚡ RECHARGING (2s)...</div>
+    </div>
+
+    <div id="damage-overlay"></div>
+
+    <div id="start-screen" class="fullscreen-overlay">
+        <h1>STARK INDUSTRIES</h1>
+        <h3>COMBAT SIMULATION // MK-42 PROTOTYPE</h3>
+        <div class="rules-box">
+            <p><span class="stark-text">"聽好了，菜鳥。這是復仇者聯盟的基礎訓練。別把我的實驗室炸了。" — Tony Stark</span></p>
+            <hr style="border-color: #555; margin: 15px 0;">
+            <ul>
+                <li>🖐️ <span class="highlight">掌心雷</span>：張手啟動連射模式 (0.2s/發)。</li>
+                <li>🎯 <span class="highlight">弱點鎖定</span>：瞄準圓框。🔴近距(危險) / 🟡中距 / 🟢遠距。</li>
+                <li>☠️ <span class="highlight">致命打擊</span>：近距離瞄準頭部紅框，一擊必殺。</li>
+                <li>❤️ <span class="highlight">裝甲完整度</span>：敵人近身會損壞裝甲 (扣血)，5 次後系統離線。</li>
+                <li>🔋 <span class="highlight">反應爐</span>：30 發能量，耗盡需 2 秒重新充能。</li>
+            </ul>
+        </div>
+        <div class="btn-group">
+            <button onclick="startGame('normal')">普通訓練</button>
+            <button class="hard-btn" onclick="startGame('hell')">終局之戰 (HELL)</button>
+        </div>
+    </div>
+
+    <div id="game-over-screen" class="fullscreen-overlay">
+        <h1 id="end-title">SIMULATION ENDED</h1>
+        <h2 id="final-score" style="color: #ffd700;"></h2>
+        <p id="result-quote"></p>
+        <div class="btn-group">
+            <button onclick="restartGame()">REBOOT SYSTEM</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const videoElement = document.getElementById('input-video');
+    const canvasElement = document.getElementById('output-canvas');
+    const canvasCtx = canvasElement.getContext('2d');
+    const ammoDisplay = document.getElementById('ammo-display');
+    const scoreDisplay = document.getElementById('score-display');
+    const timerDisplay = document.getElementById('timer-display');
+    const healthDisplay = document.getElementById('health-display');
+    const diffDisplay = document.getElementById('difficulty-display');
+    const reloadMsg = document.getElementById('reload-msg');
+    const damageOverlay = document.getElementById('damage-overlay');
+    
+    const startScreen = document.getElementById('start-screen');
+    const gameOverScreen = document.getElementById('game-over-screen');
+    const endTitle = document.getElementById('end-title');
+    const finalScoreText = document.getElementById('final-score');
+    const resultQuote = document.getElementById('result-quote');
+    const loadingDiv = document.getElementById('loading');
+
+    // --- 遊戲平衡參數 ---
+    const MAX_AMMO = 30;
+    const MAX_HEALTH = 5;
+    const GAME_DURATION = 90;
+    const RELOAD_TIME = 2000;
+    const SHOT_COOLDOWN = 200; 
+
+    // 難度設定
+    // Normal: spawnRate 提高以解決敵人太少的問題
+    const DIFFICULTY_SETTINGS = {
+        'normal': { spawnRate: 0.03, speed: 0.5, hp: 2, name: "NORMAL" }, 
+        'hell':   { spawnRate: 0.06, speed: 1.0, hp: 3, name: "ENDGAME" } 
+    };
+
+    let currentDiff = 'normal';
+    let ammo = MAX_AMMO;
+    let health = MAX_HEALTH;
+    let score = 0;
+    let timeLeft = GAME_DURATION;
+    let isGameRunning = false;
+    let isReloading = false;
+    let lastShotTime = 0;
+    let timerInterval = null;
+
+    let lasers = [];
+    let enemies = [];
+    
+    const hands = new Hands({locateFile: (file) => {
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+    }});
+
+    hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+    hands.onResults(onResults);
+
+    const camera = new Camera(videoElement, {
+        onFrame: async () => { await hands.send({image: videoElement}); },
+        width: 1280, height: 720
+    });
+    camera.start();
+
+    function startGame(diff) {
+        currentDiff = diff || 'normal';
+        startScreen.style.display = 'none';
+        gameOverScreen.style.display = 'none';
+        
+        score = 0; ammo = MAX_AMMO; health = MAX_HEALTH; timeLeft = GAME_DURATION;
+        isGameRunning = true; isReloading = false;
+        lasers = []; enemies = [];
+        damageOverlay.style.display = 'none';
+        
+        updateHUD();
+        reloadMsg.style.display = 'none';
+
+        if (timerInterval) clearInterval(timerInterval);
+        timerInterval = setInterval(() => {
+            timeLeft--;
+            updateHUD();
+            if (timeLeft <= 0) endGame(true);
+        }, 1000);
+    }
+
+    function endGame(victory) {
+        isGameRunning = false;
+        clearInterval(timerInterval);
+        gameOverScreen.style.display = 'flex';
+        
+        finalScoreText.innerText = "擊殺數: " + score;
+
+        if (victory) {
+            endTitle.innerText = "MISSION COMPLETE";
+            endTitle.style.color = "#ffd700"; // Gold
+            endTitle.style.textShadow = "0 0 20px #ff3333";
+            resultQuote.innerText = "「恭喜你通過了我，羅伯特·唐尼...呃，我是說東尼·史塔克設計的模擬器。表現得不錯，孩子。你絕對有資格成為我的接班人。歡迎加入復仇者聯盟。」";
+            resultQuote.style.color = "#00ffff";
+        } else {
+            endTitle.innerText = "SYSTEM FAILURE";
+            endTitle.style.color = "#ff3333"; // Red
+            endTitle.style.textShadow = "0 0 20px black";
+            resultQuote.innerText = "「這就是你的極限嗎？如果是真的戰場，你已經變成灰燼了。回去重練，別浪費我的電費。」";
+            resultQuote.style.color = "#ffaaaa";
+        }
+    }
+
+    function restartGame() {
+        gameOverScreen.style.display = 'none';
+        startScreen.style.display = 'flex';
+    }
+
+    function takeDamage() {
+        if (!isGameRunning) return;
+        health--; updateHUD();
+        damageOverlay.style.display = 'block';
+        setTimeout(() => { damageOverlay.style.display = 'none'; }, 500);
+        if (health <= 0) endGame(false);
+    }
+
+    function startReload() {
+        isReloading = true;
+        reloadMsg.style.display = 'block';
+        setTimeout(() => {
+            if (isGameRunning) {
+                ammo = MAX_AMMO; isReloading = false;
+                reloadMsg.style.display = 'none'; updateHUD();
+            }
+        }, RELOAD_TIME);
+    }
+
+    function distance(p1, p2) { return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2)); }
+
+    function isHandOpen(landmarks) {
+        const wrist = landmarks[0];
+        let openFingers = 0;
+        const fingerIndices = [[8, 5], [12, 9], [16, 13], [20, 17]];
+        for (let pair of fingerIndices) {
+            if (distance(landmarks[pair[0]], wrist) > distance(landmarks[pair[1]], wrist) * 1.2) openFingers++;
+        }
+        if(distance(landmarks[4], landmarks[17]) > distance(landmarks[3], landmarks[17])) openFingers++;
+        return openFingers >= 4;
+    }
+
+    function onResults(results) {
+        loadingDiv.style.display = 'none';
+        canvasElement.width = window.innerWidth;
+        canvasElement.height = window.innerHeight;
+        canvasCtx.save();
+        canvasCtx.translate(canvasElement.width, 0);
+        canvasCtx.scale(-1, 1);
+        canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+        canvasCtx.restore();
+
+        // 畫出 JARVIS 介面裝飾 (四角)
+        drawJarvisUI(canvasCtx, canvasElement.width, canvasElement.height);
+
+        if (!isGameRunning) return;
+
+        updateEnemies();
+        updateLasers();
+
+        if (results.multiHandLandmarks) {
+            for (const landmarks of results.multiHandLandmarks) {
+                const aimX = (1 - landmarks[9].x) * canvasElement.width;
+                const aimY = landmarks[9].y * canvasElement.height;
+                drawReticle(aimX, aimY, isHandOpen(landmarks));
+                if (isHandOpen(landmarks)) tryShoot(aimX, aimY);
+            }
+        }
+    }
+
+    function drawJarvisUI(ctx, w, h) {
+        ctx.strokeStyle = "rgba(0, 255, 255, 0.3)";
+        ctx.lineWidth = 2;
+        // 左上
+        ctx.beginPath(); ctx.moveTo(20, 100); ctx.lineTo(20, 20); ctx.lineTo(100, 20); ctx.stroke();
+        // 右上
+        ctx.beginPath(); ctx.moveTo(w-20, 100); ctx.lineTo(w-20, 20); ctx.lineTo(w-100, 20); ctx.stroke();
+        // 左下
+        ctx.beginPath(); ctx.moveTo(20, h-100); ctx.lineTo(20, h-20); ctx.lineTo(100, h-20); ctx.stroke();
+        // 右下
+        ctx.beginPath(); ctx.moveTo(w-20, h-100); ctx.lineTo(w-20, h-20); ctx.lineTo(w-100, h-20); ctx.stroke();
+    }
+
+    function tryShoot(x, y) {
+        if (isReloading) return;
+        const now = Date.now();
+        if (now - lastShotTime > SHOT_COOLDOWN && ammo > 0) {
+            // 修正：發射點與準心完全重疊
+            lasers.push({ x: x, y: y, targetX: x, targetY: y, scale: 1.0, spawnTime: now });
+            ammo--;
+            updateHUD();
+            lastShotTime = now;
+            if (ammo <= 0) startReload();
+        }
+    }
+
+    function updateEnemies() {
+        const settings = DIFFICULTY_SETTINGS[currentDiff];
+        let spawnChance = settings.spawnRate + (GAME_DURATION - timeLeft) * 0.0002;
+        
+        // 修正：如果場上沒敵人，強制大幅增加生成機率，避免等待
+        if (enemies.length === 0 && Math.random() < 0.1) {
+            spawnChance = 1.0; 
+        }
+
+        if (Math.random() < spawnChance) {
+            enemies.push({
+                x: Math.random() * canvasElement.width,
+                y: Math.random() * canvasElement.height * 0.8 + canvasElement.height * 0.1,
+                size: 20, maxSize: 200, hp: settings.hp, 
+                speed: settings.speed + Math.random() * 0.3,
+                weakPointColor: "green"
+            });
+        }
+
+        for (let i = enemies.length - 1; i >= 0; i--) {
+            let e = enemies[i];
+            e.size += e.speed;
+            
+            if (e.size < 80) e.weakPointColor = "green";
+            else if (e.size < 150) e.weakPointColor = "yellow";
+            else e.weakPointColor = "red";
+
+            if (e.size >= e.maxSize) {
+                takeDamage();
+                enemies.splice(i, 1);
+                continue;
+            }
+            drawTerrorist(canvasCtx, e.x, e.y, e.size, e.weakPointColor, e.hp);
+        }
+    }
+
+    function updateLasers() {
+        for (let i = lasers.length - 1; i >= 0; i--) {
+            let l = lasers[i];
+            l.scale -= 0.08;
+            if (l.scale <= 0) { lasers.splice(i, 1); continue; }
+
+            // 繪製脈衝光束 (Repulsor Beam)
+            canvasCtx.beginPath();
+            canvasCtx.moveTo(l.x, l.y + 50 * l.scale); 
+            canvasCtx.lineTo(l.x, l.y); 
+            canvasCtx.strokeStyle = `rgba(0, 255, 255, ${l.scale})`; // 反應爐藍
+            canvasCtx.lineWidth = 10 * l.scale;
+            canvasCtx.stroke();
+            
+            canvasCtx.beginPath();
+            canvasCtx.arc(l.x, l.y, 12 * l.scale, 0, 2 * Math.PI);
+            canvasCtx.fillStyle = "#fff";
+            canvasCtx.fill();
+
+            if (l.scale < 0.9 && l.scale > 0.4) {
+                for (let j = enemies.length - 1; j >= 0; j--) {
+                    let e = enemies[j];
+                    let headWeakPointDist = distance({x: l.x, y: l.y}, {x: e.x, y: e.y - e.size * 0.8});
+                    let bodyWeakPointDist = distance({x: l.x, y: l.y}, {x: e.x, y: e.y - e.size * 0.3});
+                    
+                    let damage = 0;
+                    if (e.weakPointColor === "red" && headWeakPointDist < e.size * 0.25) { 
+                        damage = 3; 
+                        canvasCtx.fillStyle = "rgba(255, 215, 0, 0.9)"; // 爆頭金光
+                    } else if (bodyWeakPointDist < e.size * 0.4) { 
+                        damage = 1; 
+                        canvasCtx.fillStyle = "rgba(255, 50, 50, 0.6)";
+                    }
+
+                    if (damage > 0) {
+                        canvasCtx.beginPath(); canvasCtx.arc(l.x, l.y, e.size * 0.3, 0, 2*Math.PI); canvasCtx.fill();
+                        e.hp -= damage;
+                        if (e.hp <= 0) {
+                            enemies.splice(j, 1);
+                            score++;
+                        } else {
+                            e.x += (Math.random()-0.5) * 40; // 擊退效果
+                            e.size -= 5;
+                        }
+                        updateHUD();
+                        lasers.splice(i, 1);
+                        break; 
+                    }
+                }
+            }
+        }
+    }
+
+    function drawTerrorist(ctx, x, y, size, weakPointColor, hp) {
+        ctx.save();
+        ctx.translate(x, y);
+        const sway = Math.sin(Date.now() / 150) * (size * 0.05);
+        
+        ctx.fillStyle = "#333"; ctx.strokeStyle = "#111"; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.roundRect(-size * 0.3 + sway, -size * 0.6, size * 0.6, size * 0.7, 10); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-size*0.2 + sway, -size*0.3); ctx.lineTo(size*0.2 + sway, -size*0.3); ctx.stroke();
+        ctx.fillStyle = "#222"; ctx.fillRect(-size*0.25 + sway, -size*0.1, size*0.2, size*0.15); ctx.fillRect(size*0.05 + sway, -size*0.1, size*0.2, size*0.15);
+        ctx.fillStyle = "#000"; ctx.beginPath(); ctx.arc(0 + sway, -size * 0.85, size * 0.25, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.ellipse(-size*0.08 + sway, -size*0.85, size*0.06, size*0.03, 0, 0, Math.PI*2); ctx.ellipse(size*0.08 + sway, -size*0.85, size*0.06, size*0.03, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#333";
+        ctx.beginPath(); ctx.roundRect(-size * 0.5 + sway, -size * 0.4, size * 0.15, size * 0.4, 5); ctx.fill();
+        ctx.beginPath(); ctx.roundRect(size * 0.35 + sway, -size * 0.4, size * 0.15, size * 0.4, 5); ctx.fill();
+        ctx.fillStyle = "#1a1a1a"; ctx.strokeStyle = "#000";
+        ctx.beginPath(); ctx.moveTo(-size*0.4 + sway, -size*0.2); ctx.lineTo(size*0.6 + sway, -size*0.2); ctx.lineTo(size*0.6 + sway, -size*0.1); ctx.lineTo(size*0.2 + sway, -size*0.1); ctx.lineTo(size*0.1 + sway, size*0.2); ctx.lineTo(0 + sway, size*0.25); ctx.lineTo(-size*0.1 + sway, -size*0.1); ctx.lineTo(-size*0.6 + sway, -size*0.1); ctx.lineTo(-size*0.7 + sway, -size*0.3); ctx.lineTo(-size*0.4 + sway, -size*0.3); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = "#654321"; ctx.fillRect(size*0.2 + sway, -size*0.18, size*0.3, size*0.06); 
+        ctx.beginPath(); ctx.moveTo(-size*0.4 + sway, -size*0.3); ctx.lineTo(-size*0.7 + sway, -size*0.3); ctx.lineTo(-size*0.6 + sway, -size*0.1); ctx.lineTo(-size*0.4 + sway, -size*0.1); ctx.fill();
+
+        if (weakPointColor !== "transparent") {
+            ctx.lineWidth = 3; ctx.strokeStyle = weakPointColor; ctx.shadowBlur = 10; ctx.shadowColor = weakPointColor;
+            ctx.beginPath(); ctx.arc(0 + sway, -size * 0.3, size * 0.25, 0, Math.PI * 2); ctx.stroke();
+            if (weakPointColor === "red") {
+                ctx.beginPath(); ctx.arc(0 + sway, -size * 0.8, size * 0.15, 0, Math.PI * 2); ctx.stroke();
+            }
+            ctx.shadowBlur = 0;
+        }
+
+        const barWidth = size;
+        ctx.fillStyle = "black"; ctx.fillRect(-barWidth/2, -size * 1.3, barWidth, size * 0.1);
+        ctx.fillStyle = hp >= 3 ? "#00ff00" : (hp == 2 ? "#ffff00" : "#ff0000");
+        ctx.fillRect(-barWidth/2 + 2, -size * 1.3 + 2, (barWidth - 4) * (hp / (currentDiff === 'hell' ? 3 : 2)), size * 0.1 - 4);
+        ctx.restore();
+    }
+
+    function drawReticle(x, y, isFiring) {
+        let size = isFiring ? 40 : 30;
+        let color = isFiring ? "#ff3333" : "#00ffff"; // 射擊時紅，平常藍
+        if (isReloading) { color = "#888888"; size = 25; }
+        canvasCtx.save(); canvasCtx.translate(x, y);
+        if (isReloading) canvasCtx.rotate(-Date.now() / 100); else canvasCtx.rotate(Date.now() / 500); 
+        
+        canvasCtx.strokeStyle = color; canvasCtx.lineWidth = 3;
+        canvasCtx.beginPath(); canvasCtx.arc(0, 0, size, 0, Math.PI * 0.3); canvasCtx.stroke();
+        canvasCtx.beginPath(); canvasCtx.arc(0, 0, size, Math.PI * 0.5, Math.PI * 0.8); canvasCtx.stroke();
+        canvasCtx.beginPath(); canvasCtx.arc(0, 0, size, Math.PI * 1.0, Math.PI * 1.3); canvasCtx.stroke();
+        canvasCtx.beginPath(); canvasCtx.arc(0, 0, size, Math.PI * 1.5, Math.PI * 1.8); canvasCtx.stroke();
+        canvasCtx.fillStyle = isFiring ? "#ff3333" : "#fff"; canvasCtx.beginPath(); canvasCtx.arc(0, 0, isFiring ? 5 : 3, 0, Math.PI*2); canvasCtx.fill();
+        
+        if (isReloading) {
+            canvasCtx.rotate(Date.now() / 100); canvasCtx.fillStyle = "#ff3333"; canvasCtx.font = "16px Arial"; canvasCtx.fillText("RELOADING", 20, 0);
+        }
+        canvasCtx.restore();
+    }
+
+    function updateHUD() {
+        ammoDisplay.innerText = `REPULSOR: ${ammo}/${MAX_AMMO}`;
+        scoreDisplay.innerText = `TARGETS: ${score}`;
+        timerDisplay.innerText = `⏱️ ${timeLeft}`;
+        diffDisplay.innerText = `PROTOCOL: ${DIFFICULTY_SETTINGS[currentDiff].name}`;
+        
+        let hearts = ""; for(let i=0; i<health; i++) hearts += "❤️"; for(let i=health; i<MAX_HEALTH; i++) hearts += "🖤";
+        healthDisplay.innerText = hearts;
+        if (ammo <= 0) ammoDisplay.style.color = "gray"; else if (ammo <= 5) ammoDisplay.style.color = "red"; else ammoDisplay.style.color = "#00ffff"; // 回復藍色
+        if (timeLeft <= 10) timerDisplay.style.color = "red"; else timerDisplay.style.color = "#ffd700";
+    }
+
+    updateHUD();
+</script>
+</body>
+</html>
