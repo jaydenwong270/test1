@@ -3,14 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Block Blast - Fixed</title>
+    <title>Block Blast - Final Fixed</title>
     <style>
         :root {
-            --bg-gradient: linear-gradient(180deg, #E3F2FD 0%, #90CAF9 100%);
-            --text-color: #1565C0;
+            /* 起始背景：靛藍 (700) */
+            --bg-gradient: linear-gradient(180deg, #303F9F 0%, #3949AB 100%);
+            --text-color: #FFFFFF;
             --grid-bg: #263238;          
             --cell-empty: #37474F;       
-            --accent-gold: #FBC02D;
+            --accent-gold: #FFD700;
             --text-blue: #E3F2FD;
             --modal-bg-gradient: linear-gradient(to bottom, #1E88E5 0%, #0D47A1 100%);
             --btn-green-start: #4cd964; 
@@ -26,7 +27,7 @@
         body {
             margin: 0;
             padding: 0;
-            background: var(--bg-gradient);
+            background-color: #000000; 
             color: var(--text-color);
             font-family: 'Segoe UI', Roboto, sans-serif;
             display: flex;
@@ -38,56 +39,84 @@
             touch-action: none;
         }
 
+        .app-wrapper {
+            width: 100%;
+            max-width: 480px;
+            height: 100%;
+            background: var(--bg-gradient);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+            transition: background 1s ease;
+        }
+
         /* 頂部資訊欄 */
         .top-bar {
             width: 100%;
-            max-width: 420px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 15px 20px;
+            padding: 15px 25px;
             position: absolute;
             top: 0;
             z-index: 10;
         }
 
-        /* 增大皇冠與分數 */
         .high-score { 
-            font-size: 2.2rem; 
+            font-size: 2rem; 
             color: var(--accent-gold); 
             font-weight: 800; 
             display: flex; 
             align-items: center; 
-            gap: 12px; 
-            text-shadow: 0 2px 4px rgba(0,0,0,0.15); 
+            gap: 10px; 
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3); 
         }
         
         .icon-btn { 
-            font-size: 1.8rem; 
-            opacity: 0.8; 
+            width: 44px;
+            height: 44px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
             cursor: pointer; 
-            color: var(--text-color);
-            transition: transform 0.2s;
+            color: #ffffff;
+            transition: all 0.2s;
+            backdrop-filter: blur(4px);
         }
-        .icon-btn:active { transform: rotate(45deg) scale(0.9); }
+        
+        .icon-btn:active { 
+            transform: scale(0.9); 
+            background: rgba(255, 255, 255, 0.25);
+        }
 
         /* 主容器 */
         .main-container {
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
+            justify-content: center; 
             width: 100%;
-            max-width: 420px;
-            transform: translateY(-10px); 
+            height: 100%; 
+            padding-top: 60px; 
+            padding-bottom: 10px;
         }
 
-        .score-container { text-align: center; margin-bottom: 15px; margin-top: 60px; }
+        .score-container { 
+            text-align: center; 
+            margin-bottom: 5px; /* 再稍微減少一點邊距 */
+            flex-shrink: 0; 
+            
+        }
         
         .current-score { 
-            font-size: 4.5rem; 
+            font-size: 4rem; 
             font-weight: 800; 
-            text-shadow: 0 4px 10px rgba(0,0,0,0.1); 
+            text-shadow: 0 4px 10px rgba(0,0,0,0.3); 
             line-height: 1; 
             color: var(--text-color);
         }
@@ -96,22 +125,24 @@
         #game-board-container {
             position: relative;
             background: var(--grid-bg);
-            padding: 8px;
+            padding: 4px;
             border-radius: 16px;
-            box-shadow: 0 15px 35px rgba(21, 101, 192, 0.2), inset 0 2px 5px rgba(255,255,255,0.05);
-            margin-bottom: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), inset 0 2px 5px rgba(255,255,255,0.05);
+            margin: 5px 0; /* 減少上下邊距 */
+            flex-shrink: 1; 
         }
 
         canvas#gridCanvas { display: block; border-radius: 8px; }
 
-        /* 底部方塊 */
+        /* 修改點 1: 底部方塊區高度增加，容納 5 格長條 */
         .shapes-area {
             width: 100%;
-            height: 110px;
+            height: 140px; /* 從 100px 增加到 140px */
             display: flex;
             justify-content: space-between;
             align-items: center;
             padding: 0 10px;
+            flex-shrink: 0; 
         }
 
         .shape-preview {
@@ -125,7 +156,7 @@
 
         canvas.shape-item {
             transition: transform 0.1s, opacity 0.2s;
-            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
         }
 
         #drag-proxy {
@@ -133,12 +164,12 @@
             pointer-events: none;
             z-index: 1000;
             display: none;
-            filter: drop-shadow(0 25px 25px rgba(0,0,0,0.3));
+            filter: drop-shadow(0 25px 25px rgba(0,0,0,0.4));
         }
 
         /* Game Over */
         #modal-overlay {
-            position: fixed;
+            position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
             background: var(--modal-bg-gradient);
             z-index: 2000;
@@ -155,7 +186,7 @@
             font-weight: 900;
             color: var(--text-blue);
             margin-bottom: 40px;
-            text-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            text-shadow: 0 4px 10px rgba(0,0,0,0.3);
             letter-spacing: 1px;
         }
 
@@ -173,7 +204,7 @@
             font-weight: 800;
             color: #ffffff;
             margin-bottom: 30px;
-            text-shadow: 0 3px 8px rgba(0,0,0,0.2);
+            text-shadow: 0 3px 8px rgba(0,0,0,0.3);
             line-height: 1;
         }
         
@@ -186,7 +217,7 @@
             border: none;
             border-radius: 35px;
             cursor: pointer;
-            box-shadow: 0 6px 0 #1e8e33, 0 15px 20px rgba(0,0,0,0.2);
+            box-shadow: 0 6px 0 #1e8e33, 0 15px 20px rgba(0,0,0,0.3);
             display: flex;
             justify-content: center;
             align-items: center;
@@ -196,7 +227,7 @@
 
         .btn-play:active {
             transform: translateY(6px);
-            box-shadow: 0 0 0 #1e8e33, 0 5px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 0 0 #1e8e33, 0 5px 10px rgba(0,0,0,0.2);
         }
 
         .play-icon {
@@ -211,35 +242,42 @@
 </head>
 <body>
 
-    <div class="top-bar">
-        <div class="high-score">👑 <span id="best-score">0</span></div>
-        <div class="icon-btn" onclick="resetGameWithoutSaving()" title="重新開始">🔄</div>
-    </div>
-
-    <div class="main-container">
-        <div class="score-container">
-            <div class="current-score" id="score">0</div>
+    <div class="app-wrapper" id="appWrapper">
+        <div class="top-bar">
+            <div class="high-score">👑 <span id="best-score">0</span></div>
+            <div class="icon-btn" onclick="resetGameWithoutSaving()" title="重新開始">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                    <path d="M3 3v5h5"></path>
+                </svg>
+            </div>
         </div>
 
-        <div id="game-board-container">
-            <canvas id="gridCanvas"></canvas>
+        <div class="main-container">
+            <div class="score-container">
+                <div class="current-score" id="score">0</div>
+            </div>
+
+            <div id="game-board-container">
+                <canvas id="gridCanvas"></canvas>
+            </div>
+
+            <div class="shapes-area" id="shapes-container"></div>
         </div>
 
-        <div class="shapes-area" id="shapes-container"></div>
+        <div id="modal-overlay">
+            <div class="modal-title">Game Over</div>
+            <div class="modal-label">Score</div>
+            <div class="modal-score-val" id="final-score">0</div>
+            <div class="modal-label">Best Score</div>
+            <div class="modal-score-val modal-best-val" id="final-best-score">0</div>
+            <button class="btn-play" onclick="restartGame()">
+                <div class="play-icon"></div>
+            </button>
+        </div>
     </div>
 
     <canvas id="drag-proxy"></canvas>
-
-    <div id="modal-overlay">
-        <div class="modal-title">Game Over</div>
-        <div class="modal-label">Score</div>
-        <div class="modal-score-val" id="final-score">0</div>
-        <div class="modal-label">Best Score</div>
-        <div class="modal-score-val modal-best-val" id="final-best-score">0</div>
-        <button class="btn-play" onclick="restartGame()">
-            <div class="play-icon"></div>
-        </button>
-    </div>
 
     <script>
         const CONFIG = {
@@ -253,6 +291,15 @@
         };
 
         const DRAG_OFFSET_Y = 100;
+
+        const BG_GRADIENTS = [
+            'linear-gradient(180deg, #303F9F 0%, #3949AB 100%)', // Level 0: 靛藍
+            'linear-gradient(180deg, #512DA8 0%, #5E35B1 100%)', // Level 1: 深紫
+            'linear-gradient(180deg, #00796B 0%, #00897B 100%)', // Level 2: 青綠
+            'linear-gradient(180deg, #388E3C 0%, #43A047 100%)', // Level 3: 綠色
+            'linear-gradient(180deg, #D32F2F 0%, #E53935 100%)', // Level 4: 紅色
+            'linear-gradient(180deg, #455A64 0%, #546E7A 100%)'  // Level 5: 藍灰
+        ];
 
         let grid = []; 
         let score = 0;
@@ -273,6 +320,7 @@
         const modal = document.getElementById('modal-overlay');
         const finalScoreEl = document.getElementById('final-score');
         const finalBestScoreEl = document.getElementById('final-best-score');
+        const appWrapper = document.getElementById('appWrapper');
 
         const SHAPES_DB = [
             [[1]], 
@@ -305,10 +353,22 @@
             restartGame();
         }
 
+        // --- 修改點 2: 更新畫面縮放邏輯，為底部預留更多空間 ---
         function resizeGame() {
-            const maxWidth = Math.min(window.innerWidth - 30, 380); 
-            canvas.width = maxWidth;
-            canvas.height = maxWidth;
+            // 寬度限制 (左右預留邊距)
+            const widthLimit = Math.min(window.innerWidth - 30, 440);
+            
+            // 高度限制 (預留頂部 60 + 分數 80 + 底部 140 + 間距 60 ~= 340)
+            const heightLimit = window.innerHeight - 340; 
+            
+            // 取兩者較小值
+            const size = Math.min(widthLimit, heightLimit);
+            
+            // 設置最小尺寸
+            const finalSize = Math.max(size, 260); 
+
+            canvas.width = finalSize;
+            canvas.height = finalSize;
             cellSize = (canvas.width - (CONFIG.gap * (CONFIG.gridSize + 1))) / CONFIG.gridSize;
         }
 
@@ -328,8 +388,6 @@
             spawnShapes();
         }
 
-        // --- 修復 Bug 的核心：通用圓角矩形繪製函數 ---
-        // 許多瀏覽器不支援 ctx.roundRect，這裡改用原生的路徑寫法
         function drawRoundedPath(ctx, x, y, size, r) {
             ctx.beginPath();
             ctx.moveTo(x + r, y);
@@ -345,10 +403,8 @@
         }
 
         function drawGlossyBlock(ctx, x, y, size, color) {
-            // 使用通用的路徑繪製
             drawRoundedPath(ctx, x, y, size, CONFIG.borderRadius);
             
-            // 填色
             const gradient = ctx.createLinearGradient(x, y, x + size, y + size);
             gradient.addColorStop(0, adjustColor(color, 30));
             gradient.addColorStop(0.5, color);
@@ -356,7 +412,6 @@
             ctx.fillStyle = gradient;
             ctx.fill();
 
-            // 高光
             const shine = ctx.createLinearGradient(x, y, x, y + size);
             shine.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
             shine.addColorStop(0.5, 'rgba(255, 255, 255, 0.1)');
@@ -364,7 +419,6 @@
             ctx.fillStyle = shine;
             ctx.fill();
 
-            // 邊框
             ctx.lineWidth = 1;
             ctx.strokeStyle = 'rgba(0,0,0,0.15)';
             ctx.stroke();
@@ -376,7 +430,6 @@
 
         function drawEmptyCell(ctx, x, y, size) {
             ctx.fillStyle = CONFIG.colors.empty;
-            // 使用通用的路徑繪製
             drawRoundedPath(ctx, x, y, size, CONFIG.borderRadius);
             ctx.fill();
             
@@ -587,6 +640,11 @@
         function updateScore(v) {
             score = v;
             scoreEl.innerText = score;
+            
+            const level = Math.floor(score / 10000);
+            const colorIndex = level % BG_GRADIENTS.length;
+            appWrapper.style.background = BG_GRADIENTS[colorIndex];
+
             if(score > bestScore) {
                 bestScore = score;
                 bestEl.innerText = bestScore;
