@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <title>Stark Industries Combat Sim</title>
+    <title>Stark Industries Combat Sim - Dual Wield</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
@@ -11,7 +11,6 @@
     <style>
         body { margin: 0; padding: 0; background-color: #050505; color: #ffd700; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
         
-        /* 背景網格特效，模擬 JARVIS 介面 */
         #game-container { 
             position: relative; width: 100vw; height: 100vh; 
             display: flex; justify-content: center; align-items: center; 
@@ -23,21 +22,20 @@
         
         #damage-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 0, 0, 0.5); z-index: 15; display: none; pointer-events: none; transition: opacity 0.5s ease-out; }
 
-        /* HUD 面板：改為鋼鐵人紅金配色 */
         .hud-panel { 
             position: absolute; top: 20px; 
-            background: rgba(60, 0, 0, 0.8); /* 深紅底 */
-            border: 2px solid #ffd700; /* 金邊 */
+            background: rgba(60, 0, 0, 0.8);
+            border: 2px solid #ffd700;
             border-left: 5px solid #ffd700;
             padding: 10px 25px; 
-            border-radius: 2px 15px 2px 15px; /* 裝甲切角 */
+            border-radius: 2px 15px 2px 15px;
             box-shadow: 0 0 15px rgba(255, 215, 0, 0.3); 
             font-weight: bold; font-size: 24px; color: #ffd700;
             display: flex; align-items: center; gap: 10px;
             font-family: 'Courier New', monospace;
         }
 
-        #score-display { left: 50%; transform: translateX(-50%); border-color: #00ffff; color: #00ffff; /* 中間維持反應爐藍 */ }
+        #score-display { left: 50%; transform: translateX(-50%); border-color: #00ffff; color: #00ffff; }
         #timer-display { left: 30px; }
         #ammo-display { right: 30px; top: 80px; color: #fff; background: rgba(100, 0, 0, 0.8); }
         #health-display { position: absolute; top: 20px; right: 30px; font-size: 32px; filter: drop-shadow(0 0 5px red); }
@@ -64,13 +62,17 @@
         #game-over-screen { display: none; }
 
         h1 { 
-            font-size: 56px; color: #ffd700; margin-bottom: 10px; 
-            text-shadow: 0 0 20px #ff0000; text-transform: uppercase; letter-spacing: 5px; 
+            font-size: 56px; 
+            margin-bottom: 10px; 
+            text-transform: uppercase; 
+            letter-spacing: 5px; 
             font-family: Impact, sans-serif;
             background: linear-gradient(to bottom, #ffd700, #b8860b);
             -webkit-background-clip: text;
-            background-clip: text;  /* <--- 補上這一行 */
+            background-clip: text;
             -webkit-text-fill-color: transparent;
+            color: transparent;
+            filter: drop-shadow(0 0 15px rgba(255, 0, 0, 0.8));
         }
         
         h3 { color: #00ffff; letter-spacing: 3px; font-weight: normal; margin-top: 0; margin-bottom: 30px; font-size: 18px; }
@@ -94,7 +96,6 @@
 
         .btn-group { display: flex; gap: 30px; margin-top: 20px; }
         
-        /* 鋼鐵人風格按鈕 */
         button { 
             padding: 15px 40px; font-size: 24px; 
             background: linear-gradient(to bottom, #d90000, #8b0000); 
@@ -139,16 +140,16 @@
 
     <div id="start-screen" class="fullscreen-overlay">
         <h1>STARK INDUSTRIES</h1>
-        <h3>COMBAT SIMULATION // MK-42 PROTOTYPE</h3>
+        <h3>COMBAT SIMULATION // DUAL WIELD UPDATE</h3>
         <div class="rules-box">
-            <p><span class="stark-text">"聽好了，菜鳥。這是復仇者聯盟的基礎訓練。別把我的實驗室炸了。" — Tony Stark</span></p>
+            <p><span class="stark-text">"雙手模式已解鎖。記住，兩隻手比一隻手好用，除非你在喝咖啡。" — Tony Stark</span></p>
             <hr style="border-color: #555; margin: 15px 0;">
             <ul>
-                <li>🖐️ <span class="highlight">掌心雷</span>：張手啟動連射模式 (0.2s/發)。</li>
+                <li>🖐️🖐️ <span class="highlight">雙手開火</span>：舉起雙手，掌心對準目標，雙倍火力！</li>
                 <li>🎯 <span class="highlight">弱點鎖定</span>：瞄準圓框。🔴近距(危險) / 🟡中距 / 🟢遠距。</li>
                 <li>☠️ <span class="highlight">致命打擊</span>：近距離瞄準頭部紅框，一擊必殺。</li>
                 <li>❤️ <span class="highlight">裝甲完整度</span>：敵人近身會損壞裝甲 (扣血)，5 次後系統離線。</li>
-                <li>🔋 <span class="highlight">反應爐</span>：30 發能量，耗盡需 2 秒重新充能。</li>
+                <li>🔋 <span class="highlight">反應爐</span>：30 發能量，雙手射擊會消耗更快，耗盡需 2 秒充能。</li>
             </ul>
         </div>
         <div class="btn-group">
@@ -186,15 +187,12 @@
     const resultQuote = document.getElementById('result-quote');
     const loadingDiv = document.getElementById('loading');
 
-    // --- 遊戲平衡參數 ---
     const MAX_AMMO = 30;
     const MAX_HEALTH = 5;
     const GAME_DURATION = 90;
     const RELOAD_TIME = 2000;
     const SHOT_COOLDOWN = 200; 
 
-    // 難度設定
-    // Normal: spawnRate 提高以解決敵人太少的問題
     const DIFFICULTY_SETTINGS = {
         'normal': { spawnRate: 0.03, speed: 0.5, hp: 2, name: "NORMAL" }, 
         'hell':   { spawnRate: 0.06, speed: 1.0, hp: 3, name: "ENDGAME" } 
@@ -207,9 +205,11 @@
     let timeLeft = GAME_DURATION;
     let isGameRunning = false;
     let isReloading = false;
-    let lastShotTime = 0;
+    
+    // --- 修改點 1: 使用 Map 記錄每隻手的獨立冷卻時間 ---
+    let handCooldowns = new Map(); // Key: handIndex, Value: lastShotTimestamp
+    
     let timerInterval = null;
-
     let lasers = [];
     let enemies = [];
     
@@ -217,7 +217,8 @@
         return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
     }});
 
-    hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+    // --- 修改點 2: 將 maxNumHands 設為 2，啟用雙手偵測 ---
+    hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
     hands.onResults(onResults);
 
     const camera = new Camera(videoElement, {
@@ -234,6 +235,7 @@
         score = 0; ammo = MAX_AMMO; health = MAX_HEALTH; timeLeft = GAME_DURATION;
         isGameRunning = true; isReloading = false;
         lasers = []; enemies = [];
+        handCooldowns.clear(); // 重置冷卻
         damageOverlay.style.display = 'none';
         
         updateHUD();
@@ -256,13 +258,13 @@
 
         if (victory) {
             endTitle.innerText = "MISSION COMPLETE";
-            endTitle.style.color = "#ffd700"; // Gold
+            endTitle.style.color = "#ffd700"; 
             endTitle.style.textShadow = "0 0 20px #ff3333";
             resultQuote.innerText = "「恭喜你通過了我，羅伯特·唐尼...呃，我是說東尼·史塔克設計的模擬器。表現得不錯，孩子。你絕對有資格成為我的接班人。歡迎加入復仇者聯盟。」";
             resultQuote.style.color = "#00ffff";
         } else {
             endTitle.innerText = "SYSTEM FAILURE";
-            endTitle.style.color = "#ff3333"; // Red
+            endTitle.style.color = "#ff3333"; 
             endTitle.style.textShadow = "0 0 20px black";
             resultQuote.innerText = "「這就是你的極限嗎？如果是真的戰場，你已經變成灰燼了。回去重練，別浪費我的電費。」";
             resultQuote.style.color = "#ffaaaa";
@@ -316,7 +318,6 @@
         canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
         canvasCtx.restore();
 
-        // 畫出 JARVIS 介面裝飾 (四角)
         drawJarvisUI(canvasCtx, canvasElement.width, canvasElement.height);
 
         if (!isGameRunning) return;
@@ -324,12 +325,18 @@
         updateEnemies();
         updateLasers();
 
+        // --- 修改點 3: 遍歷所有偵測到的手，並傳入索引 i 作為 ID ---
         if (results.multiHandLandmarks) {
-            for (const landmarks of results.multiHandLandmarks) {
+            for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+                const landmarks = results.multiHandLandmarks[i];
                 const aimX = (1 - landmarks[9].x) * canvasElement.width;
                 const aimY = landmarks[9].y * canvasElement.height;
+                
+                // 每個手都有自己的準心
                 drawReticle(aimX, aimY, isHandOpen(landmarks));
-                if (isHandOpen(landmarks)) tryShoot(aimX, aimY);
+                
+                // 嘗試射擊，傳入 ID 以分辨是哪隻手
+                if (isHandOpen(landmarks)) tryShoot(aimX, aimY, i);
             }
         }
     }
@@ -337,25 +344,29 @@
     function drawJarvisUI(ctx, w, h) {
         ctx.strokeStyle = "rgba(0, 255, 255, 0.3)";
         ctx.lineWidth = 2;
-        // 左上
         ctx.beginPath(); ctx.moveTo(20, 100); ctx.lineTo(20, 20); ctx.lineTo(100, 20); ctx.stroke();
-        // 右上
         ctx.beginPath(); ctx.moveTo(w-20, 100); ctx.lineTo(w-20, 20); ctx.lineTo(w-100, 20); ctx.stroke();
-        // 左下
         ctx.beginPath(); ctx.moveTo(20, h-100); ctx.lineTo(20, h-20); ctx.lineTo(100, h-20); ctx.stroke();
-        // 右下
         ctx.beginPath(); ctx.moveTo(w-20, h-100); ctx.lineTo(w-20, h-20); ctx.lineTo(w-100, h-20); ctx.stroke();
     }
 
-    function tryShoot(x, y) {
+    // --- 修改點 4: 射擊函式接收 handIndex，實現獨立冷卻 ---
+    function tryShoot(x, y, handIndex) {
         if (isReloading) return;
+        
         const now = Date.now();
-        if (now - lastShotTime > SHOT_COOLDOWN && ammo > 0) {
-            // 修正：發射點與準心完全重疊
+        // 取得該手的上次射擊時間，若無則為 0
+        const lastShot = handCooldowns.get(handIndex) || 0;
+
+        // 檢查該手是否冷卻完畢
+        if (now - lastShot > SHOT_COOLDOWN && ammo > 0) {
             lasers.push({ x: x, y: y, targetX: x, targetY: y, scale: 1.0, spawnTime: now });
             ammo--;
             updateHUD();
-            lastShotTime = now;
+            
+            // 更新該手的冷卻時間
+            handCooldowns.set(handIndex, now);
+            
             if (ammo <= 0) startReload();
         }
     }
@@ -364,7 +375,6 @@
         const settings = DIFFICULTY_SETTINGS[currentDiff];
         let spawnChance = settings.spawnRate + (GAME_DURATION - timeLeft) * 0.0002;
         
-        // 修正：如果場上沒敵人，強制大幅增加生成機率，避免等待
         if (enemies.length === 0 && Math.random() < 0.1) {
             spawnChance = 1.0; 
         }
@@ -402,11 +412,10 @@
             l.scale -= 0.08;
             if (l.scale <= 0) { lasers.splice(i, 1); continue; }
 
-            // 繪製脈衝光束 (Repulsor Beam)
             canvasCtx.beginPath();
             canvasCtx.moveTo(l.x, l.y + 50 * l.scale); 
             canvasCtx.lineTo(l.x, l.y); 
-            canvasCtx.strokeStyle = `rgba(0, 255, 255, ${l.scale})`; // 反應爐藍
+            canvasCtx.strokeStyle = `rgba(0, 255, 255, ${l.scale})`; 
             canvasCtx.lineWidth = 10 * l.scale;
             canvasCtx.stroke();
             
@@ -424,7 +433,7 @@
                     let damage = 0;
                     if (e.weakPointColor === "red" && headWeakPointDist < e.size * 0.25) { 
                         damage = 3; 
-                        canvasCtx.fillStyle = "rgba(255, 215, 0, 0.9)"; // 爆頭金光
+                        canvasCtx.fillStyle = "rgba(255, 215, 0, 0.9)";
                     } else if (bodyWeakPointDist < e.size * 0.4) { 
                         damage = 1; 
                         canvasCtx.fillStyle = "rgba(255, 50, 50, 0.6)";
@@ -437,7 +446,7 @@
                             enemies.splice(j, 1);
                             score++;
                         } else {
-                            e.x += (Math.random()-0.5) * 40; // 擊退效果
+                            e.x += (Math.random()-0.5) * 40;
                             e.size -= 5;
                         }
                         updateHUD();
@@ -486,7 +495,7 @@
 
     function drawReticle(x, y, isFiring) {
         let size = isFiring ? 40 : 30;
-        let color = isFiring ? "#ff3333" : "#00ffff"; // 射擊時紅，平常藍
+        let color = isFiring ? "#ff3333" : "#00ffff"; 
         if (isReloading) { color = "#888888"; size = 25; }
         canvasCtx.save(); canvasCtx.translate(x, y);
         if (isReloading) canvasCtx.rotate(-Date.now() / 100); else canvasCtx.rotate(Date.now() / 500); 
@@ -512,7 +521,7 @@
         
         let hearts = ""; for(let i=0; i<health; i++) hearts += "❤️"; for(let i=health; i<MAX_HEALTH; i++) hearts += "🖤";
         healthDisplay.innerText = hearts;
-        if (ammo <= 0) ammoDisplay.style.color = "gray"; else if (ammo <= 5) ammoDisplay.style.color = "red"; else ammoDisplay.style.color = "#00ffff"; // 回復藍色
+        if (ammo <= 0) ammoDisplay.style.color = "gray"; else if (ammo <= 5) ammoDisplay.style.color = "red"; else ammoDisplay.style.color = "#00ffff"; 
         if (timeLeft <= 10) timerDisplay.style.color = "red"; else timerDisplay.style.color = "#ffd700";
     }
 
