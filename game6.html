@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>刺殺國王 (Among Us Edition)</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        :root {
+            --bg-color: #AF7AC5;      
+            --floor-color: #2c3e50;   
+            --carpet-color: #c0392b;  
+            --pillar-color: #566573;  
+            
+            --king-color: #e74c3c;    
+            --assassin-color: #2c3e50; 
+            --guard-color: #2980b9;    
+            --visor-color: #81ecec;   
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a1a;
+            color: white;
+            font-family: 'Press Start 2P', cursive;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 1000px;
+            height: 600px;
+            background-color: var(--bg-color); 
+            border: 8px solid #34495e;
+            box-shadow: 0 0 30px rgba(0,0,0,0.6);
+            overflow: hidden;
+        }
+
+        /* --- 背景裝飾 --- */
+        .scenery {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            transition: opacity 0.5s;
+        }
+
+        .floor {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 80px;
+            background-color: var(--floor-color);
+            z-index: 1;
+            border-top: 5px solid #34495e;
+        }
+
+        .carpet {
+            position: absolute;
+            bottom: 0;
+            width: 200%;
+            height: 60px;
+            background: repeating-linear-gradient(90deg, #c0392b, #c0392b 40px, #a93226 40px, #a93226 80px);
+            z-index: 2;
+            animation: scroll 2s linear infinite;
+            box-shadow: 0 -5px 10px rgba(0,0,0,0.2);
+        }
+
+        .wall-decor {
+            position: absolute;
+            top: 0;
+            width: 200%;
+            height: 100%;
+            display: flex;
+            justify-content: space-around;
+            align-items: flex-start;
+            animation: scroll 8s linear infinite;
+            z-index: 0;
+            padding-top: 20px;
+        }
+
+        .curtain {
+            width: 100px;
+            height: 180px;
+            background-color: #c0392b;
+            background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.1) 10px, rgba(0,0,0,0.1) 20px),
+                              repeating-linear-gradient(-45deg, transparent, transparent 10px, rgba(0,0,0,0.1) 10px, rgba(0,0,0,0.1) 20px);
+            border-bottom: 5px solid #f1c40f;
+            border-radius: 0 0 50% 50%;
+            position: relative;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        .curtain::after {
+            content: ''; position: absolute; top: 40%; left: -10px; width: 120px; height: 20px;
+            border-radius: 50%; box-shadow: 0 5px 0 rgba(0,0,0,0.2); z-index: 1;
+        }
+
+        .armor-stand {
+            width: 80px;
+            height: 160px;
+            position: relative;
+            top: 360px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .armor-head {
+            width: 40px; height: 45px;
+            background-color: #95a5a6;
+            border: 3px solid #2c3e50;
+            border-radius: 50% 50% 10px 10px;
+            position: relative; z-index: 2;
+            box-shadow: inset -5px -5px 0 rgba(0,0,0,0.2);
+        }
+        .armor-head::after {
+            content: ''; position: absolute; top: 15px; left: 10px; width: 20px; height: 4px;
+            background-color: #2c3e50; border-radius: 2px;
+        }
+        .armor-body {
+            width: 60px; height: 70px;
+            background-color: #7f8c8d;
+            border: 3px solid #2c3e50;
+            border-radius: 10px 10px 40px 40px;
+            position: relative; top: -5px; z-index: 1;
+            box-shadow: inset -5px 0 0 rgba(0,0,0,0.2);
+        }
+        .armor-stand::after {
+            content: ''; position: absolute; bottom: 0; width: 10px; height: 50px;
+            background-color: #5d4037; border: 2px solid #2c3e50;
+        }
+        .armor-stand::before {
+            content: ''; position: absolute; bottom: 0; width: 60px; height: 10px;
+            background-color: #5d4037; border-radius: 5px; border: 2px solid #2c3e50;
+        }
+
+        .weapon-rack {
+            position: relative;
+            top: 60px;
+            width: 80px; height: 80px;
+            background-color: rgba(0,0,0,0.2);
+            border-radius: 10px;
+            display: flex; justify-content: center; align-items: center;
+        }
+
+        .morning-star {
+            position: relative;
+            transform: rotate(-15deg);
+        }
+        .morning-star-handle {
+            width: 6px; height: 50px; background-color: #5d4037; border: 2px solid #000;
+        }
+        .morning-star-ball {
+            width: 25px; height: 25px; background-color: #bdc3c7; 
+            border: 2px solid #000; border-radius: 50%;
+            position: absolute; top: -15px; left: -10px;
+            box-shadow: inset -3px -3px 0 #7f8c8d;
+        }
+        .morning-star-ball::before { content: ''; position: absolute; top: -4px; left: 10px; width: 4px; height: 34px; background-color: #000; }
+        .morning-star-ball::after { content: ''; position: absolute; top: 10px; left: -4px; width: 34px; height: 4px; background-color: #000; }
+
+        .battle-axe {
+            position: relative;
+            transform: rotate(15deg);
+        }
+        .axe-handle {
+            width: 8px; height: 60px; background-color: #5d4037; border: 2px solid #000;
+        }
+        .axe-blade {
+            width: 40px; height: 30px;
+            background-color: #95a5a6;
+            border: 2px solid #000;
+            position: absolute; top: 5px; left: 6px;
+            clip-path: polygon(0% 0%, 100% 20%, 100% 80%, 0% 100%, 20% 50%);
+            box-shadow: inset 5px 0 10px rgba(0,0,0,0.3);
+        }
+
+        .pillars-container {
+            position: absolute;
+            top: 20px;
+            width: 200%;
+            height: 500px;
+            display: flex;
+            justify-content: space-around;
+            z-index: 1;
+            animation: scroll 4s linear infinite;
+        }
+
+        .pillar {
+            width: 60px;
+            height: 100%;
+            background-color: var(--pillar-color);
+            background-image: linear-gradient(90deg, rgba(255,255,255,0.1) 0%, transparent 50%, rgba(0,0,0,0.3) 100%);
+            border-left: 2px solid #2c3e50;
+            border-right: 2px solid #2c3e50;
+            box-shadow: 10px 0 20px rgba(0,0,0,0.4);
+            position: relative;
+        }
+        .pillar::before {
+            content: ''; position: absolute; top: -10px; left: -10px;
+            width: 80px; height: 40px;
+            background-color: var(--pillar-color);
+            border: 2px solid #2c3e50;
+            border-radius: 5px;
+            box-shadow: 0 5px 5px rgba(0,0,0,0.2);
+        }
+        .pillar::after {
+            content: ''; position: absolute; bottom: 0; left: -10px;
+            width: 80px; height: 40px;
+            background-color: var(--pillar-color);
+            border: 2px solid #2c3e50;
+            border-radius: 5px 5px 0 0;
+        }
+
+        @keyframes scroll {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        .paused .carpet, .paused .pillars-container, .paused .wall-decor {
+            animation-play-state: paused;
+        }
+
+        /* --- Among Us 角色樣式 --- */
+        .character {
+            position: absolute;
+            bottom: 60px;
+            z-index: 10;
+            transition: transform 0.1s, left 0.5s linear, opacity 0.5s;
+        }
+
+        .au-body {
+            width: 90px;
+            height: 110px;
+            background-color: var(--char-color);
+            border: 6px solid #000;
+            border-radius: 40px 40px 15px 15px;
+            position: relative;
+            z-index: 2;
+            transition: background-color 0.5s;
+        }
+
+        .au-backpack {
+            position: absolute;
+            top: 25px; left: -25px;
+            width: 30px; height: 60px;
+            background-color: var(--char-color);
+            border: 6px solid #000;
+            border-radius: 10px;
+            z-index: 1;
+            transition: background-color 0.5s;
+        }
+
+        .au-visor {
+            position: absolute;
+            top: 25px; right: -15px;
+            width: 50px; height: 35px;
+            background-color: var(--visor-color);
+            border: 6px solid #000;
+            border-radius: 20px;
+            z-index: 3;
+            box-shadow: inset 5px 5px 0 rgba(255,255,255,0.4);
+        }
+
+        .au-legs {
+            position: absolute;
+            bottom: -20px; left: 0;
+            width: 100%;
+            display: flex; justify-content: space-between;
+            padding: 0 10px; box-sizing: border-box;
+        }
+        
+        .au-leg {
+            width: 25px; height: 30px;
+            background-color: var(--char-color);
+            border: 6px solid #000; border-top: none;
+            border-radius: 0 0 10px 10px;
+            position: relative; top: -5px; z-index: 2;
+            transition: background-color 0.5s;
+        }
+
+        .walking { animation: bounceWalk 0.4s infinite alternate ease-in-out; }
+        @keyframes bounceWalk {
+            0% { transform: translateY(0) rotate(0deg); }
+            100% { transform: translateY(-5px) rotate(2deg); }
+        }
+
+        /* ID 選擇器樣式 */
+        #king { left: 700px; --char-color: var(--king-color); }
+        #assassin { left: 250px; --char-color: var(--assassin-color); }
+
+        .crown { position: absolute; top: -35px; left: 15px; z-index: 4; transform-origin: bottom center; transition: all 0.5s ease-in-out; }
+        .crown svg { width: 60px; height: 45px; fill: #f1c40f; stroke: #000; stroke-width: 3px; filter: drop-shadow(2px 2px 0 rgba(0,0,0,0.3)); }
+
+        .dagger-container { position: absolute; top: 40px; right: -40px; transform-origin: 0 50%; transform: rotate(45deg); opacity: 0; transition: all 0.1s; z-index: 5; }
+        .dagger { font-size: 60px; filter: drop-shadow(3px 3px 0 #000); }
+        .charging .dagger-container { opacity: 1; transform: rotate(-20deg) translateY(-10px); }
+        
+        .king-looking .au-body, .king-looking .au-legs { transform: scaleX(-1); }
+        .king-looking .crown { left: 15px; transform: scaleX(-1); }
+        
+        .dead { transform: rotate(90deg) translateY(50px) !important; opacity: 0.7; }
+
+        /* UI */
+        #kill-bar-container { position: absolute; top: 30px; left: 50%; transform: translateX(-50%); width: 400px; height: 30px; background-color: #34495e; border: 4px solid #fff; border-radius: 15px; display: none; z-index: 100; overflow: hidden; }
+        #kill-bar { width: 0%; height: 100%; background-color: #e74c3c; transition: width 0.05s linear; }
+
+        .alert { position: absolute; top: -70px; left: 20px; font-size: 60px; color: #c0392b; font-weight: bold; display: none; animation: bounce 0.3s infinite; z-index: 20; text-shadow: 3px 3px 0 #fff; }
+
+        /* 遮罩 */
+        .overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 200; text-align: center;
+        }
+        .overlay h1 { color: #f1c40f; margin-bottom: 20px; font-size: 30px; text-shadow: 4px 4px 0 #c0392b; line-height: 1.5;}
+        .overlay p { font-size: 16px; line-height: 1.8; color: #ecf0f1; }
+        .hint { color: #3498db; margin-top: 20px; font-size: 12px; animation: blink 1s infinite; }
+
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .caught-effect { animation: flashRed 0.5s infinite; }
+        @keyframes flashRed { 0%, 100% { background-color: var(--bg-color); } 50% { background-color: #e74c3c; } }
+
+        /* 監獄 */
+        #jail-scene { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: #2c3e50; display: none; z-index: 150; flex-direction: column; align-items: center; justify-content: center; }
+        .jail-bars { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: repeating-linear-gradient(90deg, transparent, transparent 40px, #333 40px, #333 50px); z-index: 20; pointer-events: none; transform: translateY(-100%); transition: transform 0.5s ease-in; }
+        .jail-bars.closed { transform: translateY(0); }
+        .guard { --char-color: var(--guard-color); position: absolute; bottom: 60px; transition: transform 1s; }
+        #guard-left { left: -100px; }
+        #guard-right { right: -100px; transform: scaleX(-1); }
+        
+        .crown-fly { animation: crownFly 1s forwards ease-in-out; }
+        @keyframes crownFly { 0% { top: -35px; left: 15px; } 100% { top: -35px; left: -450px; } }
+
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        
+        <!-- 背景層 -->
+        <div class="scenery" id="scenery">
+            <div class="wall-decor">
+                <div class="curtain"></div>
+                <div class="armor-stand"><div class="armor-head"></div><div class="armor-body"></div></div>
+                <div class="curtain"></div>
+                <div class="weapon-rack"><div class="morning-star"><div class="morning-star-handle"></div><div class="morning-star-ball"></div></div></div>
+                 <div class="curtain"></div>
+                 <div class="weapon-rack"><div class="battle-axe"><div class="axe-handle"></div><div class="axe-blade"></div></div></div>
+            </div>
+            <div class="pillars-container">
+                <div class="pillar"></div><div class="pillar"></div><div class="pillar"></div><div class="pillar"></div><div class="pillar"></div>
+            </div>
+            <div class="floor"></div>
+            <div class="carpet"></div>
+        </div>
+
+        <!-- 角色：國王 -->
+        <div id="king" class="character walking">
+            <div id="king-crown" class="crown">
+                <svg viewBox="0 0 24 24"><path d="M2 18h20v2H2v-2zm0-2l4-10 4 6 2-4 2 4 4-6 4 10H2z"></path></svg>
+            </div>
+            <div class="au-backpack"></div>
+            <div class="au-body"><div class="au-visor"></div></div>
+            <div class="au-legs"><div class="au-leg"></div><div class="au-leg"></div></div>
+            <div class="alert" id="king-alert">!</div>
+        </div>
+
+        <!-- 角色：刺客 -->
+        <div id="assassin" class="character walking">
+            <div class="au-backpack"></div>
+            <div class="au-body"><div class="au-visor"></div></div>
+            <div class="au-legs"><div class="au-leg"></div><div class="au-leg"></div></div>
+            <div class="dagger-container"><div class="dagger">🔪</div></div>
+        </div>
+
+        <!-- 監獄場景層 -->
+        <div id="jail-scene">
+            <div class="jail-bars" id="jail-bars"></div>
+            <!-- 警衛 -->
+            <div id="guard-left" class="character guard walking">
+                <div class="au-backpack"></div>
+                <div class="au-body"><div class="au-visor"></div></div>
+                <div class="au-legs"><div class="au-leg"></div><div class="au-leg"></div></div>
+            </div>
+            <div id="guard-right" class="character guard walking">
+                <div class="au-backpack"></div>
+                <div class="au-body"><div class="au-visor"></div></div>
+                <div class="au-legs"><div class="au-leg"></div><div class="au-leg"></div></div>
+            </div>
+        </div>
+
+        <div id="kill-bar-container"><div id="kill-bar"></div></div>
+        
+        <div style="position: absolute; top: 10px; left: 10px; font-size: 10px; color: rgba(255,255,255,0.7);">
+            SPACE: Kill / Report
+        </div>
+
+        <!-- 遮罩 -->
+        <div id="overlay" class="overlay">
+            <h1 id="title-text">THERE IS AN <br>IMPOSTOR AMONG US</h1>
+            <p id="desc-text">你是刺客 (Impostor)。<br>按住 [空白鍵] 舉刀刺殺國王。<br>當國王回頭時，必須立刻鬆手裝作無辜！</p>
+            <p class="hint">PRESS [SPACE] TO START</p>
+        </div>
+    </div>
+
+    <script>
+        const STATE = { START: 0, ASSASSIN: 1, KING: 2, JAIL_ANIM: 3, END: 4, KILL_ANIM: 5 };
+        let current = STATE.START;
+        let charge = 0;
+        let isHolding = false;
+        let kingTurning = false;
+        let kingLooking = false;
+        let timer = null;
+        let animationId = null;
+        let aiCharge = 0;
+        let aiAttacking = false;
+        let kingCooldown = false;
+
+        // 當前玩家與AI的顏色
+        let playerColor = '#8e44ad'; // 刺客初始紫
+        let aiColor = '#e74c3c';     // 國王初始紅
+
+        const container = document.getElementById('game-container');
+        const scenery = document.getElementById('scenery');
+        
+        let kingEl = document.getElementById('king');
+        let assassinEl = document.getElementById('assassin');
+        
+        const kingCrown = document.getElementById('king-crown'); 
+        
+        const jailScene = document.getElementById('jail-scene');
+        const jailBars = document.getElementById('jail-bars');
+        const guardLeft = document.getElementById('guard-left');
+        const guardRight = document.getElementById('guard-right');
+
+        const barContainer = document.getElementById('kill-bar-container');
+        const bar = document.getElementById('kill-bar');
+        const overlay = document.getElementById('overlay');
+        const titleText = document.getElementById('title-text');
+        const descText = document.getElementById('desc-text');
+        const kingAlert = document.getElementById('king-alert');
+
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        const ctx = new AudioCtx();
+        function beep(freq, dur, type='square') {
+            if(ctx.state==='suspended') ctx.resume();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.frequency.value = freq;
+            osc.type = type;
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + dur);
+            osc.stop(ctx.currentTime + dur);
+        }
+
+        document.addEventListener('keydown', e => { if (e.code === 'Space' && !e.repeat) handlePress(); });
+        document.addEventListener('keyup', e => { if (e.code === 'Space') handleRelease(); });
+        document.addEventListener('touchstart', e => { e.preventDefault(); handlePress(); }, {passive:false});
+        document.addEventListener('touchend', e => { e.preventDefault(); handleRelease(); });
+
+        function handlePress() {
+            if (current === STATE.START) {
+                startGameAssassin();
+                return;
+            }
+            if (current === STATE.END) {
+                resetGame();
+                return;
+            }
+            if (current === STATE.ASSASSIN) {
+                isHolding = true;
+                assassinEl.classList.add('charging');
+                // 修正：蓄力時不停止走路，符合原版玩法
+            } else if (current === STATE.KING) {
+                kingCheck();
+            }
+        }
+
+        function handleRelease() {
+            if (current === STATE.ASSASSIN) {
+                isHolding = false;
+                assassinEl.classList.remove('charging');
+            }
+        }
+
+        function stopWalking() {
+            container.classList.add('paused');
+            kingEl.classList.remove('walking');
+            assassinEl.classList.remove('walking');
+        }
+        
+        function startWalking() {
+            if (kingLooking) return; // 如果國王看著，不能走
+            container.classList.remove('paused');
+            kingEl.classList.add('walking');
+            assassinEl.classList.add('walking');
+        }
+
+        function resetGame() {
+            playerColor = '#8e44ad';
+            aiColor = '#e74c3c';
+            // 重置 DOM 引用
+            kingEl = document.getElementById('king');
+            assassinEl = document.getElementById('assassin');
+            
+            startGameAssassin();
+        }
+
+        function startGameAssassin() {
+            current = STATE.ASSASSIN;
+            overlay.style.display = 'none';
+            jailScene.style.display = 'none';
+            barContainer.style.display = 'block';
+            scenery.style.opacity = '1';
+            
+            // 強制重置狀態
+            kingLooking = false;
+            kingTurning = false;
+            isHolding = false;
+            clearTimeout(timer);
+
+            kingEl.style.display = 'block';
+            assassinEl.style.display = 'block';
+            
+            // 重置 ID 和位置 (確保變數對應正確的 DOM)
+            kingEl.id = 'king';
+            kingEl.style.left = '700px'; 
+            kingEl.style.opacity = '1';
+            kingEl.classList.remove('dead'); 
+            kingEl.style.setProperty('--char-color', aiColor);
+            
+            assassinEl.id = 'assassin';
+            assassinEl.style.left = '250px';
+            assassinEl.style.setProperty('--char-color', playerColor);
+            
+            // 歸還道具
+            if(!kingEl.contains(kingCrown)) kingEl.appendChild(kingCrown);
+            kingCrown.style.display = 'block';
+            kingCrown.classList.remove('crown-fly');
+            kingCrown.style.top = '-35px'; kingCrown.style.left = '15px';
+            
+            if(!kingEl.contains(kingAlert)) kingEl.appendChild(kingAlert);
+
+            // 確保匕首在刺客身上
+            let dagger = assassinEl.querySelector('.dagger-container');
+            if(!dagger) {
+                 dagger = document.createElement('div');
+                 dagger.className = 'dagger-container';
+                 dagger.innerHTML = '<div class="dagger">🔪</div>';
+                 assassinEl.appendChild(dagger);
+            }
+            dagger.style.display = 'block';
+
+            kingEl.classList.remove('king-looking');
+            kingAlert.style.display = 'none';
+            container.classList.remove('caught-effect');
+            jailBars.classList.remove('closed');
+            
+            charge = 0;
+            updateBar(0);
+            
+            startWalking();
+            scheduleKingLook();
+            gameLoop();
+        }
+
+        function scheduleKingLook() {
+            if (current !== STATE.ASSASSIN) return;
+            let t = Math.random() * 2000 + 1500; 
+            timer = setTimeout(kingWarns, t);
+        }
+
+        function kingWarns() {
+            if (current !== STATE.ASSASSIN) return;
+            kingAlert.style.display = 'block';
+            beep(600, 0.1);
+            setTimeout(() => { if (current !== STATE.ASSASSIN) return; kingTurnAround(); }, 500);
+        }
+
+        function kingTurnAround() {
+            kingTurning = true;
+            stopWalking();
+            kingEl.classList.add('king-looking');
+            kingAlert.style.display = 'none';
+            
+            setTimeout(() => {
+                kingLooking = true;
+                
+                if (isHolding) {
+                    playJailScene("PLAYER_CAUGHT");
+                } else {
+                    setTimeout(() => {
+                        kingLooking = false;
+                        kingEl.classList.remove('king-looking');
+                        kingTurning = false;
+                        if (!isHolding) startWalking();
+                        scheduleKingLook();
+                    }, 1500);
+                }
+            }, 50); 
+        }
+
+        // --- 新增：AI 刺殺動畫 (國王被刺死) ---
+        function playAiKillScene() {
+            current = STATE.KILL_ANIM;
+            stopWalking();
+            barContainer.style.display = 'none'; // 隱藏血條
+
+            // 1. AI 刺客快速衝過來
+            assassinEl.style.transition = 'left 0.5s ease-in';
+            assassinEl.style.left = '480px';
+            assassinEl.classList.add('walking');
+
+            setTimeout(() => {
+                stopWalking();
+                assassinEl.style.transition = '';
+                assassinEl.classList.remove('walking');
+                
+                // 2. 刺殺瞬間
+                container.classList.add('caught-effect');
+                beep(800, 0.5, 'sine');
+                
+                // 玩家國王倒地
+                kingEl.classList.add('dead');
+                
+                setTimeout(() => {
+                    container.classList.remove('caught-effect');
+                    // 顯示失敗
+                    gameOver(false, "DEFEATED", "你被刺客殺死了！");
+                }, 1000);
+            }, 500);
+        }
+
+        function playKillScene() {
+            current = STATE.KILL_ANIM;
+            stopWalking();
+
+            assassinEl.style.transition = 'left 1.5s linear';
+            assassinEl.style.left = '480px';
+            assassinEl.classList.add('walking');
+
+            setTimeout(() => {
+                stopWalking(); 
+                assassinEl.style.transition = ''; 
+
+                container.classList.add('caught-effect');
+                beep(800, 0.5, 'sine');
+
+                kingEl.classList.add('dead');
+                kingCrown.classList.add('crown-fly');
+
+                setTimeout(() => {
+                    container.classList.remove('caught-effect');
+
+                    assassinEl.style.left = '700px'; 
+                    assassinEl.style.setProperty('--char-color', '#e74c3c'); 
+
+                    kingEl.style.opacity = '0';
+
+                    overlay.style.display = 'flex';
+                    titleText.innerText = "VICTORY";
+                    descText.innerText = "你奪取了皇冠！\n現在你是國王(King)。\n小心背後的新刺客！";
+                    descText.style.color = "#f1c40f";
+
+                    setTimeout(() => {
+                        overlay.style.display = 'none';
+                        startKingMode();
+                    }, 3000);
+                }, 1000); 
+
+            }, 1500); 
+        }
+
+        function startKingMode() {
+            current = STATE.KING;
+            barContainer.style.display = 'block';
+            
+            isHolding = false;
+            kingLooking = false;
+            kingTurning = false;
+            
+            let oldPlayerColor = playerColor;
+            
+            // === 身份交換邏輯 ===
+            // 1. 原本的刺客 (assassinEl) 變成國王
+            let newKing = assassinEl;
+            newKing.id = 'king';
+            newKing.style.left = '700px';
+            newKing.classList.remove('charging'); 
+            
+            newKing.appendChild(kingCrown);
+            kingCrown.classList.remove('crown-fly'); 
+            kingCrown.style.top = '-35px'; kingCrown.style.left = '15px';
+            newKing.appendChild(kingAlert); 
+
+            playerColor = '#e74c3c'; 
+            newKing.style.setProperty('--char-color', playerColor); 
+            // 隱藏刺客的刀
+            let d = newKing.querySelector('.dagger-container');
+            if(d) d.style.display = 'none';
+
+            // 2. 原本的國王 (kingEl) 重生為新刺客
+            let newAssassin = kingEl;
+            newAssassin.id = 'assassin';
+            newAssassin.style.left = '-100px';
+            newAssassin.style.opacity = '1';
+            newAssassin.classList.remove('dead');
+            
+            // 確保有刀
+            let d2 = newAssassin.querySelector('.dagger-container');
+            if(!d2) {
+                 d2 = document.createElement('div');
+                 d2.className = 'dagger-container';
+                 d2.innerHTML = '<div class="dagger">🔪</div>';
+                 newAssassin.appendChild(d2);
+            }
+            d2.style.display = 'block';
+            
+            let newEnemyColor = '#' + Math.floor(Math.random()*16777215).toString(16);
+            aiColor = newEnemyColor;
+            newAssassin.style.setProperty('--char-color', aiColor);
+            
+            kingEl = newKing;
+            assassinEl = newAssassin;
+
+            setTimeout(() => {
+                assassinEl.style.left = '250px';
+            }, 100);
+            
+            aiCharge = 0;
+            updateBar(0);
+            startWalking();
+            aiLoop();
+        }
+
+        function aiLoop() {
+            if (current !== STATE.KING) return;
+            // 修正：AI 攻擊邏輯參數調整，確保能殺死玩家
+            if (!aiAttacking && Math.random() < 0.02) {
+                aiAttacking = true;
+                assassinEl.classList.add('charging');
+                assassinEl.querySelector('.dagger-container').style.opacity = 1;
+            } else if (aiAttacking && Math.random() < 0.005) { // 極低放棄率
+                aiAttacking = false;
+                assassinEl.classList.remove('charging');
+                assassinEl.querySelector('.dagger-container').style.opacity = 0;
+            }
+            if (current === STATE.KING) requestAnimationFrame(aiLoop);
+        }
+
+        function kingCheck() {
+            if (kingCooldown) return;
+            kingEl.classList.add('king-looking');
+            kingCooldown = true;
+            stopWalking();
+            
+            if (aiAttacking) {
+                beep(800, 0.2, 'sawtooth');
+                playJailScene("ASSASSIN_CAUGHT");
+            } else {
+                setTimeout(() => {
+                    kingEl.classList.remove('king-looking');
+                    kingCooldown = false;
+                    startWalking();
+                }, 1000);
+            }
+        }
+        
+        function resetAI() {
+            assassinEl.style.opacity = '0';
+            setTimeout(() => {
+                let newColor = '#' + Math.floor(Math.random()*16777215).toString(16);
+                aiColor = newColor; 
+                assassinEl.style.setProperty('--char-color', newColor);
+                assassinEl.style.opacity = '1';
+                aiCharge = 0;
+                updateBar(0);
+                aiAttacking = false;
+                assassinEl.classList.remove('charging');
+            }, 500);
+        }
+
+        function playJailScene(scenario) {
+            current = STATE.JAIL_ANIM;
+            stopWalking();
+            container.classList.add('caught-effect');
+            beep(100, 0.5, 'sawtooth');
+
+            setTimeout(() => {
+                container.classList.remove('caught-effect');
+                scenery.style.opacity = '0.2';
+                kingEl.style.display = 'none';
+                assassinEl.style.display = 'none';
+                barContainer.style.display = 'none';
+                jailScene.style.display = 'flex';
+                
+                guardLeft.style.left = '300px';
+                guardRight.style.right = '300px';
+                
+                let prisonerColor;
+                if (scenario === 'ASSASSIN_CAUGHT') {
+                    prisonerColor = aiColor; 
+                } else {
+                    prisonerColor = playerColor; 
+                }
+                
+                let prisoner = document.createElement('div');
+                prisoner.className = 'character walking';
+                prisoner.innerHTML = `<div class="au-body" style="background-color:${prisonerColor}"></div><div class="au-legs"><div class="au-leg" style="background-color:${prisonerColor}"></div><div class="au-leg" style="background-color:${prisonerColor}"></div></div>`;
+                prisoner.style.left = '450px';
+                prisoner.style.bottom = '60px';
+                jailScene.appendChild(prisoner);
+
+                setTimeout(() => {
+                    guardLeft.style.left = '1050px';
+                    guardRight.style.right = '-600px';
+                    prisoner.style.left = '1150px';
+                    prisoner.style.transition = 'left 2s';
+                    
+                    setTimeout(() => {
+                        jailBars.classList.add('closed');
+                        beep(50, 0.5, 'square'); 
+                        
+                        setTimeout(() => {
+                            if (scenario === 'ASSASSIN_CAUGHT') {
+                                jailScene.style.display = 'none';
+                                jailBars.classList.remove('closed');
+                                scenery.style.opacity = '1';
+                                kingEl.style.display = 'block';
+                                assassinEl.style.display = 'block';
+                                barContainer.style.display = 'block';
+                                
+                                current = STATE.KING;
+                                kingEl.classList.remove('king-looking');
+                                kingCooldown = false;
+                                resetAI();
+                                startWalking();
+                                aiLoop();
+                            } else {
+                                let msg = (scenario === 'PLAYER_CAUGHT') ? "國王發現你是 Impostor！" : "你被 Impostor 刺殺了！";
+                                gameOver(false, "Defeated", msg);
+                            }
+                            prisoner.remove(); 
+                        }, 1000);
+                    }, 1500);
+
+                }, 1000);
+            }, 1000);
+        }
+
+        function gameLoop() {
+            if (current === STATE.ASSASSIN) {
+                // 確保轉頭期間不能蓄力
+                if (isHolding && !kingLooking && !kingTurning) {
+                    charge += 0.4;
+                    updateBar(charge);
+                    if (charge >= 100) {
+                        beep(200, 0.5, 'sawtooth');
+                        playKillScene(); 
+                        return;
+                    }
+                } else if (!isHolding && charge > 0) {
+                    charge -= 0.1;
+                    updateBar(charge);
+                }
+                
+                if (isHolding && kingLooking) {
+                    playJailScene("PLAYER_CAUGHT");
+                }
+
+            } else if (current === STATE.KING) {
+                if (aiAttacking) {
+                    aiCharge += 0.8; // 加快 AI 蓄力速度 (原本0.3太慢)
+                    updateBar(aiCharge);
+                    if (aiCharge >= 100) {
+                        playAiKillScene(); // 這裡現在呼叫新的刺殺動畫
+                        return;
+                    }
+                } else {
+                    if (aiCharge > 0) {
+                        aiCharge -= 0.5; // AI 沒攻擊時退條
+                        updateBar(aiCharge);
+                    }
+                }
+            }
+            if (current !== STATE.END) requestAnimationFrame(gameLoop);
+        }
+
+        function updateBar(val) {
+            bar.style.width = val + '%';
+        }
+
+        function gameOver(win, title, desc) {
+            current = STATE.END;
+            overlay.style.display = 'flex';
+            titleText.innerText = title;
+            descText.innerText = desc;
+            
+            if (win) {
+                titleText.style.color = '#2ecc71';
+                container.style.boxShadow = '0 0 50px #2ecc71';
+            } else {
+                titleText.style.color = '#e74c3c';
+                container.classList.add('caught-effect');
+            }
+        }
+    </script>
+</body>
+</html>
