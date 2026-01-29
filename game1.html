@@ -918,7 +918,7 @@
                         score = Math.max(0, score - 5);
                         scoreElement.textContent = score;
                         obstacles.splice(i, 1);
-                        generateObstacle(); // 這裡原程式碼有個小 bug 叫 generateObstacle (單數)，但我看上面有 generateObstacles (複數)。我補上單數的函數
+                        generateSingleObstacle(); // 生成新的障礙物替代被破壞的
                         break;
                     }
                 }
@@ -946,21 +946,49 @@
             draw();
         }
 
-        // 補充：生成單個障礙物 (修復原代碼可能的遺漏)
-        function generateObstacle() {
+        // 生成單個障礙物 (用於替代被破壞的障礙物)
+        function generateSingleObstacle() {
             let newObstacle;
             let validPosition = false;
-            while (!validPosition) {
-                newObstacle = { x: Math.floor(Math.random() * gridWidth), y: Math.floor(Math.random() * gridHeight) };
+            let attempts = 0;
+            const maxAttempts = 50; // 防止無限循環
+            
+            while (!validPosition && attempts < maxAttempts) {
+                attempts++;
+                newObstacle = {
+                    x: Math.floor(Math.random() * gridWidth),
+                    y: Math.floor(Math.random() * gridHeight)
+                };
                 validPosition = true;
-                // 簡單檢查
-                for (let s of snake) if (s.x === newObstacle.x && s.y === newObstacle.y) validPosition = false;
-                if (validPosition && food.x === newObstacle.x && food.y === newObstacle.y) validPosition = false;
+                
+                // 檢查是否與蛇重疊
+                for (let s of snake) {
+                    if (s.x === newObstacle.x && s.y === newObstacle.y) {
+                        validPosition = false;
+                        break;
+                    }
+                }
+                
+                // 檢查是否與食物重疊
+                if (validPosition && food.x === newObstacle.x && food.y === newObstacle.y) {
+                    validPosition = false;
+                }
+                
+                // 檢查是否與其他障礙物重疊
                 if (validPosition) {
-                    for (let o of obstacles) if (o.x === newObstacle.x && o.y === newObstacle.y) validPosition = false;
+                    for (let o of obstacles) {
+                        if (o.x === newObstacle.x && o.y === newObstacle.y) {
+                            validPosition = false;
+                            break;
+                        }
+                    }
                 }
             }
-            obstacles.push(newObstacle);
+            
+            if (validPosition) {
+                obstacles.push(newObstacle);
+            }
+            // 如果找不到有效位置，就不生成新障礙物
         }
         
         // 遊戲結束
@@ -994,47 +1022,29 @@
             gameLoop = setInterval(update, gameSpeed);
         }
         
-        // 暫停遊戲
-        function pauseGame() {
-            if (!gameRunning) return;
+        // 統一的暫停/恢復函數
+        function togglePause() {
+            if (!gameRunning && !gameLoop) return; // 遊戲未開始不能暫停
+            
             if (gameLoop) {
+                // 當前正在運行，暫停遊戲
                 clearInterval(gameLoop);
                 gameLoop = null;
-                gameRunning = false; // 暫停狀態
-                gameStatusElement.textContent = `SYSTEM PAUSED`;
+                gameStatusElement.textContent = "SYSTEM PAUSED";
                 gameStatusElement.style.color = "#FFC107";
             } else {
-                // 這裡邏輯有點怪，如果是暫停應該要能恢復，但 gameRunning 設為 false 會擋住。
-                // 修改為：
-                startGame();
-            }
-        }
-        // 修正暫停邏輯
-        // 我們用一個變數 isPaused 來輔助
-        let isPaused = false;
-        function togglePause() {
-            if (!gameRunning && !isPaused) return; // 沒開始不能暫停
-            
-            if (isPaused) {
-                isPaused = false;
-                gameRunning = true;
+                // 當前已暫停，恢復遊戲
                 gameLoop = setInterval(update, gameSpeed);
                 gameStatusElement.textContent = "SYSTEM RUNNING...";
                 gameStatusElement.style.color = "#4CAF50";
-            } else {
-                isPaused = true;
-                gameRunning = false; // 停止 update
-                clearInterval(gameLoop);
-                gameStatusElement.textContent = "SYSTEM PAUSED";
-                gameStatusElement.style.color = "#FFC107";
             }
         }
 
         // 重置遊戲
         function resetGame() {
             clearInterval(gameLoop);
+            gameLoop = null;
             gameRunning = false;
-            isPaused = false;
             initGame();
         }
         
@@ -1062,7 +1072,7 @@
                 case 'ArrowRight': if (direction !== 'left') nextDirection = 'right'; e.preventDefault(); break;
                 case ' ': togglePause(); e.preventDefault(); break; // 空白鍵暫停
                 case 'r': case 'R': resetGame(); e.preventDefault(); break;
-                case 'Enter': if(!gameRunning && !isPaused) startGame(); e.preventDefault(); break;
+                case 'Enter': if(!gameRunning) startGame(); e.preventDefault(); break;
             }
         });
         
