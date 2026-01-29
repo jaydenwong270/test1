@@ -101,11 +101,166 @@
     <video id="cam-preview" class="hidden" playsinline></video>
 
     <script>
+        // Import performance utilities
+        const PerformanceOptimizer = window.PerformanceOptimizer || {
+            detectPerformanceLevel: () => 'medium',
+            getOptimizedSettings: () => ({ particleCount: 15000 })
+        };
+
         /**
          * =========================================================================
-         * SECTION 1: GAME RULES / INTERACTION CONFIGURATION
-         * This object maps normalized hand events to game/visual actions.
-         * Modify this section to create different games (e.g., Shooter, Rhythm).
+         * SECTION 1: PERFORMANCE MONITORING & ADJUSTMENT
+         * =========================================================================
+         */
+        const PERFORMANCE = {
+            fps: 0,
+            lastFrameTime: 0,
+            frameCount: 0,
+            lastFpsUpdate: 0,
+            performanceLevel: 'unknown',
+            targetFPS: 60,
+            adaptiveMode: true,
+            
+            init: function() {
+                this.performanceLevel = PerformanceOptimizer.detectPerformanceLevel();
+                console.log(`Performance level detected: ${this.performanceLevel}`);
+                
+                // Set target FPS based on performance level
+                if (this.performanceLevel === 'low') {
+                    this.targetFPS = 30;
+                } else if (this.performanceLevel === 'medium') {
+                    this.targetFPS = 45;
+                } else {
+                    this.targetFPS = 60;
+                }
+                
+                this.lastFrameTime = performance.now();
+                this.updateStatus();
+            },
+            
+            update: function(currentTime) {
+                this.frameCount++;
+                
+                // Update FPS every second
+                if (currentTime - this.lastFpsUpdate >= 1000) {
+                    this.fps = Math.round((this.frameCount * 1000) / (currentTime - this.lastFpsUpdate));
+                    this.frameCount = 0;
+                    this.lastFpsUpdate = currentTime;
+                    this.updateStatus();
+                    
+                    // Adaptive adjustment if FPS is too low
+                    if (this.adaptiveMode && this.fps < this.targetFPS * 0.7) {
+                        this.adjustQuality();
+                    }
+                }
+            },
+            
+            updateStatus: function() {
+                const statusEl = document.getElementById('sys-status');
+                if (statusEl) {
+                    statusEl.innerHTML = `${this.fps}FPS | ${this.performanceLevel.toUpperCase()} | ${STATE.particleCount.toLocaleString()} particles`;
+                }
+            },
+            
+            adjustQuality: function() {
+                console.log(`Performance warning: ${this.fps}FPS, adjusting quality...`);
+                
+                // Reduce particle count if possible
+                if (STATE.particleCount > 5000) {
+                    const newCount = Math.max(5000, Math.floor(STATE.particleCount * 0.7));
+                    console.log(`Reducing particles from ${STATE.particleCount} to ${newCount}`);
+                    this.adjustParticleCount(newCount);
+                }
+                
+                // Show warning to user
+                this.showPerformanceWarning();
+            },
+            
+            adjustParticleCount: function(newCount) {
+                if (newCount === STATE.particleCount) return;
+                
+                // Create new arrays with adjusted size
+                const oldPositions = geometry.attributes.position.array;
+                const oldTargets = targets;
+                const oldVelocities = velocities;
+                
+                // Create new arrays
+                const newPositions = new Float32Array(newCount * 3);
+                const newTargets = new Float32Array(newCount * 3);
+                const newVelocities = new Float32Array(newCount * 3);
+                
+                // Copy existing data (or generate new if expanding)
+                const copyCount = Math.min(STATE.particleCount, newCount);
+                for (let i = 0; i < copyCount * 3; i++) {
+                    newPositions[i] = oldPositions[i];
+                    newTargets[i] = oldTargets[i];
+                    newVelocities[i] = oldVelocities[i];
+                }
+                
+                // If expanding, fill remaining with random positions
+                if (newCount > STATE.particleCount) {
+                    for (let i = STATE.particleCount * 3; i < newCount * 3; i++) {
+                        newPositions[i] = (Math.random() - 0.5) * 200;
+                        newTargets[i] = newPositions[i];
+                        newVelocities[i] = 0;
+                    }
+                }
+                
+                // Update geometry
+                geometry.setAttribute('position', new THREE.BufferAttribute(newPositions, 3));
+                
+                // Update global references
+                positions = newPositions;
+                targets = newTargets;
+                velocities = newVelocities;
+                STATE.particleCount = newCount;
+                
+                // Regenerate current shape
+                generateShape(STATE.currentShapeIndex);
+                
+                console.log(`Particle count adjusted to ${newCount}`);
+                this.updateStatus();
+            },
+            
+            showPerformanceWarning: function() {
+                // Create or update warning element
+                let warningEl = document.getElementById('performance-warning');
+                if (!warningEl) {
+                    warningEl = document.createElement('div');
+                    warningEl.id = 'performance-warning';
+                    warningEl.style.cssText = `
+                        position: absolute;
+                        top: 60px;
+                        right: 20px;
+                        background: rgba(255, 100, 0, 0.9);
+                        color: white;
+                        padding: 10px 15px;
+                        border-radius: 8px;
+                        font-size: 12px;
+                        z-index: 100;
+                        max-width: 250px;
+                        backdrop-filter: blur(5px);
+                        border: 1px solid rgba(255, 255, 255, 0.2);
+                    `;
+                    document.body.appendChild(warningEl);
+                }
+                
+                warningEl.innerHTML = `
+                    <strong>⚠️ Performance Notice</strong><br>
+                    System adjusted for smoother experience.<br>
+                    Particles: ${STATE.particleCount.toLocaleString()} | FPS: ${this.fps}
+                `;
+                
+                // Auto-hide after 5 seconds
+                setTimeout(() => {
+                    if (warningEl) warningEl.style.opacity = '0';
+                }, 5000);
+            }
+        };
+
+        /**
+         * =========================================================================
+         * SECTION 2: GAME RULES / INTERACTION CONFIGURATION
          * =========================================================================
          */
         const GAME_RULES = {
@@ -127,7 +282,7 @@
 
         /**
          * =========================================================================
-         * SECTION 2: CORE SYSTEM (Three.js & Particle Logic)
+         * SECTION 3: CORE SYSTEM (Three.js & Particle Logic)
          * =========================================================================
          */
         
@@ -135,7 +290,7 @@
         const STATE = {
             width: window.innerWidth,
             height: window.innerHeight,
-            particleCount: 25000,
+            particleCount: 15000, // Start with reasonable default
             currentShapeIndex: 0,
             color: new THREE.Color(0x00d2ff),
             handsDetected: 0,
@@ -160,19 +315,34 @@
         // We use BufferGeometry for performance with raw TypedArrays
         const geometry = new THREE.BufferGeometry();
         
-        // Attributes
-        const positions = new Float32Array(STATE.particleCount * 3);
-        const targets = new Float32Array(STATE.particleCount * 3); // Destination shape
-        const velocities = new Float32Array(STATE.particleCount * 3); // Physics velocity
+        // Attributes (will be initialized after performance detection)
+        let positions, targets, velocities;
         
-        // Init Random Positions
-        for (let i = 0; i < STATE.particleCount * 3; i++) {
-            positions[i] = (Math.random() - 0.5) * 200;
-            targets[i] = positions[i];
-            velocities[i] = 0;
+        function initParticleSystem(particleCount) {
+            STATE.particleCount = particleCount;
+            
+            positions = new Float32Array(particleCount * 3);
+            targets = new Float32Array(particleCount * 3); // Destination shape
+            velocities = new Float32Array(particleCount * 3); // Physics velocity
+            
+            // Init Random Positions
+            for (let i = 0; i < particleCount * 3; i++) {
+                positions[i] = (Math.random() - 0.5) * 200;
+                targets[i] = positions[i];
+                velocities[i] = 0;
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setDrawRange(0, particleCount);
         }
 
-        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        // Initialize with optimal particle count based on performance level
+        const perfSettings = PerformanceOptimizer.getOptimizedSettings('game4');
+        const initialParticleCount = perfSettings?.particleCount ||
+            (PERFORMANCE.performanceLevel === 'low' ? 8000 :
+             PERFORMANCE.performanceLevel === 'medium' ? 15000 : 25000);
+        
+        initParticleSystem(initialParticleCount);
 
         // Create a soft circle texture programmatically
         const getSprite = () => {
@@ -254,13 +424,29 @@
 
         function generateShape(shapeIndex) {
             const generator = SHAPES[shapeIndex].gen;
-            for (let i = 0; i < STATE.particleCount; i++) {
-                const [x, y, z] = generator(i);
-                targets[i * 3] = x;
-                targets[i * 3 + 1] = y;
-                targets[i * 3 + 2] = z;
+            // Use requestAnimationFrame to avoid blocking main thread for large particle counts
+            const batchSize = 1000;
+            let processed = 0;
+            
+            function processBatch() {
+                const end = Math.min(processed + batchSize, STATE.particleCount);
+                for (let i = processed; i < end; i++) {
+                    const [x, y, z] = generator(i);
+                    const idx = i * 3;
+                    targets[idx] = x;
+                    targets[idx + 1] = y;
+                    targets[idx + 2] = z;
+                }
+                processed = end;
+                
+                if (processed < STATE.particleCount) {
+                    requestAnimationFrame(processBatch);
+                } else {
+                    updateUIButtons();
+                }
             }
-            updateUIButtons();
+            
+            processBatch();
         }
 
         // --- Interaction Logic (Actions) ---
@@ -380,11 +566,36 @@
             particles.rotation.y += 0.002;
         }
 
-        // --- Render Loop ---
-        function animate() {
-            requestAnimationFrame(animate);
+        // --- Render Loop with Frame Rate Control ---
+        let lastRenderTime = 0;
+        let frameId = null;
+        
+        function animate(currentTime) {
+            frameId = requestAnimationFrame(animate);
+            
+            // Frame rate control
+            const timeSinceLastRender = currentTime - lastRenderTime;
+            const targetFrameTime = 1000 / PERFORMANCE.targetFPS;
+            
+            if (timeSinceLastRender < targetFrameTime) {
+                return; // Skip frame to maintain target FPS
+            }
+            
+            lastRenderTime = currentTime;
+            
+            // Update performance monitoring
+            PERFORMANCE.update(currentTime);
+            
+            // Update particles and render
             updateParticles();
             renderer.render(scene, camera);
+        }
+        
+        function stopAnimation() {
+            if (frameId) {
+                cancelAnimationFrame(frameId);
+                frameId = null;
+            }
         }
 
         /**
@@ -414,28 +625,51 @@
 
         hands.onResults(onResults);
 
-        // Camera setup
+        // Camera setup with promise-based error handling
         const startCamera = () => {
-            const camera = new Camera(videoElement, {
-                onFrame: async () => {
-                    await hands.send({image: videoElement});
-                },
-                width: 320,
-                height: 240
-            });
-            camera.start()
-            .then(() => {
-                document.getElementById('overlay').classList.add('hidden');
-                document.getElementById('ui-panel').classList.remove('hidden');
-                document.getElementById('status-bar').classList.remove('hidden');
-                document.getElementById('cam-preview').classList.remove('hidden');
-                document.getElementById('sys-status').innerText = "Running";
-            })
-            .catch(err => {
-                document.getElementById('loading-text').classList.add('hidden');
-                document.getElementById('error-msg').classList.remove('hidden');
-                document.getElementById('error-msg').innerText = "Camera Access Denied. Please enable camera and refresh.";
-                console.error(err);
+            return new Promise((resolve, reject) => {
+                // Check if camera is supported
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    reject(new Error('Camera API not supported in this browser.'));
+                    return;
+                }
+                
+                const camera = new Camera(videoElement, {
+                    onFrame: async () => {
+                        try {
+                            await hands.send({image: videoElement});
+                        } catch (e) {
+                            console.warn('Hands processing error:', e);
+                        }
+                    },
+                    width: 320,
+                    height: 240
+                });
+                
+                camera.start()
+                .then(() => {
+                    document.getElementById('overlay').classList.add('hidden');
+                    document.getElementById('ui-panel').classList.remove('hidden');
+                    document.getElementById('status-bar').classList.remove('hidden');
+                    document.getElementById('cam-preview').classList.remove('hidden');
+                    document.getElementById('sys-status').innerText = "Running";
+                    resolve();
+                })
+                .catch(err => {
+                    console.error('Camera start failed:', err);
+                    
+                    // Provide specific error messages
+                    let errorMsg = "Camera Access Denied.";
+                    if (err.name === 'NotAllowedError') {
+                        errorMsg = "Camera permission denied. Please allow camera access in your browser settings.";
+                    } else if (err.name === 'NotFoundError') {
+                        errorMsg = "No camera found. Please connect a camera and try again.";
+                    } else if (err.name === 'NotReadableError') {
+                        errorMsg = "Camera is in use by another application.";
+                    }
+                    
+                    reject(new Error(errorMsg));
+                });
             });
         };
 
@@ -522,13 +756,40 @@
          * =========================================================================
          */
         
-        // Start Button
-        document.getElementById('start-btn').addEventListener('click', () => {
+        // Start Button with improved error handling
+        document.getElementById('start-btn').addEventListener('click', async () => {
             document.getElementById('start-btn').classList.add('hidden');
             document.getElementById('loading-text').classList.remove('hidden');
-            startCamera();
-            generateShape(0); // Init Shape
-            animate(); // Start Loop
+            
+            try {
+                // Initialize performance monitoring
+                PERFORMANCE.init();
+                
+                // Check if Three.js loaded
+                if (typeof THREE === 'undefined') {
+                    throw new Error('Three.js failed to load. Please check your internet connection.');
+                }
+                
+                // Check WebGL support
+                if (!renderer.capabilities.isWebGL2 && !renderer.capabilities.isWebGL1) {
+                    throw new Error('WebGL is not supported in your browser. Please try a modern browser.');
+                }
+                
+                // Start camera and animation
+                await startCamera();
+                generateShape(0); // Init Shape
+                animate(performance.now()); // Start Loop with performance timing
+                
+            } catch (error) {
+                console.error('Startup error:', error);
+                document.getElementById('loading-text').classList.add('hidden');
+                document.getElementById('error-msg').classList.remove('hidden');
+                document.getElementById('error-msg').innerHTML = `
+                    <strong>Startup Failed</strong><br>
+                    ${error.message}<br>
+                    <button onclick="location.reload()" style="margin-top: 10px; padding: 5px 15px;">Retry</button>
+                `;
+            }
         });
 
         // Shape Buttons
@@ -564,13 +825,81 @@
             actions.currentForce = 0;
         });
 
-        // Window Resize
+        // Window Resize with debouncing
+        let resizeTimeout;
         window.addEventListener('resize', () => {
-            STATE.width = window.innerWidth;
-            STATE.height = window.innerHeight;
-            camera.aspect = STATE.width / STATE.height;
-            camera.updateProjectionMatrix();
-            renderer.setSize(STATE.width, STATE.height);
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                STATE.width = window.innerWidth;
+                STATE.height = window.innerHeight;
+                camera.aspect = STATE.width / STATE.height;
+                camera.updateProjectionMatrix();
+                renderer.setSize(STATE.width, STATE.height);
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Limit pixel ratio for performance
+            }, 250);
+        });
+
+        // Page visibility handling
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                // Page is hidden, pause animation to save resources
+                stopAnimation();
+                document.getElementById('sys-status').innerText = "Paused (Tab Hidden)";
+            } else {
+                // Page is visible again, resume animation
+                if (frameId === null) {
+                    lastRenderTime = performance.now();
+                    animate(performance.now());
+                }
+            }
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            stopAnimation();
+            if (hands && hands.close) {
+                hands.close();
+            }
+            if (videoElement.srcObject) {
+                const tracks = videoElement.srcObject.getTracks();
+                tracks.forEach(track => track.stop());
+            }
+        });
+
+        // Add manual performance adjustment button to UI
+        const uiPanel = document.getElementById('ui-panel');
+        const perfControlGroup = document.createElement('div');
+        perfControlGroup.className = 'ui-group';
+        perfControlGroup.innerHTML = `
+            <span class="ui-label">Performance</span>
+            <div style="display: flex; gap: 5px; margin-top: 5px;">
+                <button id="perf-low" title="Low (8k particles)">Low</button>
+                <button id="perf-medium" title="Medium (15k particles)">Medium</button>
+                <button id="perf-high" title="High (25k particles)">High</button>
+            </div>
+        `;
+        uiPanel.insertBefore(perfControlGroup, uiPanel.querySelector('.ui-group:last-child'));
+
+        // Performance control event handlers
+        document.getElementById('perf-low').addEventListener('click', () => {
+            PERFORMANCE.adjustParticleCount(8000);
+            PERFORMANCE.performanceLevel = 'low';
+            PERFORMANCE.targetFPS = 30;
+            PERFORMANCE.updateStatus();
+        });
+        
+        document.getElementById('perf-medium').addEventListener('click', () => {
+            PERFORMANCE.adjustParticleCount(15000);
+            PERFORMANCE.performanceLevel = 'medium';
+            PERFORMANCE.targetFPS = 45;
+            PERFORMANCE.updateStatus();
+        });
+        
+        document.getElementById('perf-high').addEventListener('click', () => {
+            PERFORMANCE.adjustParticleCount(25000);
+            PERFORMANCE.performanceLevel = 'high';
+            PERFORMANCE.targetFPS = 60;
+            PERFORMANCE.updateStatus();
         });
 
     </script>
