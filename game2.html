@@ -442,6 +442,8 @@
         const bird = {
             x: 80, y: canvas.height / 3, width: 80, height: 24, // 機身加長
             gravity: 0.5, velocity: 0, jumpPower: -7.5, rotation: 0,
+            hitboxScale: 0.7, // 縮小碰撞框以匹配視覺效果
+            debugMode: false, // 啟用碰撞框視覺化
             
             draw: function() {
                 ctx.save(); ctx.translate(this.x, this.y);
@@ -455,7 +457,7 @@
                 // 機頭 (圓滑)
                 ctx.fillStyle = '#fff';
                 ctx.beginPath();
-                ctx.ellipse(bx + this.width - 10, by + 12, 12, 10, 0, -Math.PI/2, Math.PI/2); 
+                ctx.ellipse(bx + this.width - 10, by + 12, 12, 10, 0, -Math.PI/2, Math.PI/2);
                 ctx.fill();
                 ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
 
@@ -491,13 +493,97 @@
                 ctx.fillStyle = '#2c3e50';
                 ctx.fillRect(bx + this.width - 18, by + 5, 8, 4);
 
+                // 繪製碰撞框 (除錯用)
+                if (this.debugMode) {
+                    ctx.restore();
+                    ctx.save();
+                    ctx.translate(this.x, this.y);
+                    ctx.rotate(this.rotation);
+                    ctx.strokeStyle = '#ff0000';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([5, 5]);
+                    ctx.strokeRect(
+                        -this.width * this.hitboxScale / 2,
+                        -this.height * this.hitboxScale / 2,
+                        this.width * this.hitboxScale,
+                        this.height * this.hitboxScale
+                    );
+                    ctx.setLineDash([]);
+                }
+
                 ctx.restore();
             },
+            
+            // 計算旋轉後的碰撞框邊界
+            getRotatedBounds: function() {
+                const halfWidth = this.width * this.hitboxScale / 2;
+                const halfHeight = this.height * this.hitboxScale / 2;
+                
+                // 四個角點 (未旋轉)
+                const corners = [
+                    { x: -halfWidth, y: -halfHeight },
+                    { x: halfWidth, y: -halfHeight },
+                    { x: halfWidth, y: halfHeight },
+                    { x: -halfWidth, y: halfHeight }
+                ];
+                
+                // 旋轉角點
+                const cos = Math.cos(this.rotation);
+                const sin = Math.sin(this.rotation);
+                
+                let minX = Infinity, maxX = -Infinity;
+                let minY = Infinity, maxY = -Infinity;
+                
+                for (const corner of corners) {
+                    const rotatedX = corner.x * cos - corner.y * sin + this.x;
+                    const rotatedY = corner.x * sin + corner.y * cos + this.y;
+                    
+                    minX = Math.min(minX, rotatedX);
+                    maxX = Math.max(maxX, rotatedX);
+                    minY = Math.min(minY, rotatedY);
+                    maxY = Math.max(maxY, rotatedY);
+                }
+                
+                return {
+                    left: minX,
+                    right: maxX,
+                    top: minY,
+                    bottom: maxY,
+                    width: maxX - minX,
+                    height: maxY - minY
+                };
+            },
+            
+            // 檢查與矩形的碰撞
+            collidesWithRect: function(rectX, rectY, rectWidth, rectHeight) {
+                const bounds = this.getRotatedBounds();
+                
+                // 軸對齊邊界框碰撞檢測
+                return !(
+                    bounds.right < rectX ||
+                    bounds.left > rectX + rectWidth ||
+                    bounds.bottom < rectY ||
+                    bounds.top > rectY + rectHeight
+                );
+            },
+            
             jump: function() { this.velocity = this.jumpPower; this.rotation = -20 * Math.PI / 180; },
             update: function() {
                 this.velocity += this.gravity; this.y += this.velocity;
-                if (this.y + this.height/2 >= canvas.height - ground.height) { this.y = canvas.height - ground.height - this.height/2; if (gameRunning) gameOver(); }
-                if (this.y - this.height/2 <= 0) { this.y = this.height/2; this.velocity = 0; }
+                
+                // 地面碰撞檢測
+                const groundY = canvas.height - ground.height;
+                const bounds = this.getRotatedBounds();
+                if (bounds.bottom >= groundY) {
+                    this.y = groundY - (bounds.bottom - this.y) - 1;
+                    if (gameRunning) gameOver();
+                }
+                
+                // 天花板碰撞檢測
+                if (bounds.top <= 0) {
+                    this.y = (bounds.top - this.y) + 1;
+                    this.velocity = Math.max(this.velocity, 0);
+                }
             },
             reset: function() { this.y = canvas.height / 3; this.velocity = 0; this.rotation = 0; }
         };
@@ -505,12 +591,38 @@
         // --- 3. 水管 (保持世貿雙塔，高對比度) ---
         const pipes = {
             position: [], width: 70, gap: 170, minTopPipeHeight: 80,
+            pipeMargin: 5, // 水管碰撞邊距
             
             draw: function() {
                 for (let i = 0; i < this.position.length; i++) {
                     let p = this.position[i];
-                    this.drawTower(p.x, 0, this.width, p.top, true); 
-                    this.drawTower(p.x, p.top + this.gap, this.width, canvas.height - (p.top + this.gap) - ground.height, false); 
+                    this.drawTower(p.x, 0, this.width, p.top, true);
+                    this.drawTower(p.x, p.top + this.gap, this.width, canvas.height - (p.top + this.gap) - ground.height, false);
+                    
+                    // 繪製水管碰撞框 (除錯用)
+                    if (bird.debugMode) {
+                        ctx.strokeStyle = '#ff0000';
+                        ctx.lineWidth = 2;
+                        ctx.setLineDash([3, 3]);
+                        
+                        // 上水管碰撞框
+                        ctx.strokeRect(
+                            p.x + this.pipeMargin,
+                            0 + this.pipeMargin,
+                            this.width - this.pipeMargin * 2,
+                            p.top - this.pipeMargin * 2
+                        );
+                        
+                        // 下水管碰撞框
+                        ctx.strokeRect(
+                            p.x + this.pipeMargin,
+                            p.top + this.gap + this.pipeMargin,
+                            this.width - this.pipeMargin * 2,
+                            canvas.height - (p.top + this.gap) - ground.height - this.pipeMargin * 2
+                        );
+                        
+                        ctx.setLineDash([]);
+                    }
                 }
             },
             drawTower(x, y, w, h, isTop) {
@@ -525,13 +637,46 @@
                 if (frames % 120 === 0) {
                     const availableHeight = canvas.height - ground.height;
                     const maxTop = availableHeight - this.gap - 80;
-                    this.position.push({ x: canvas.width, top: Math.floor(Math.random() * (maxTop - this.minTopPipeHeight + 1)) + this.minTopPipeHeight, passed: false });
+                    this.position.push({
+                        x: canvas.width,
+                        top: Math.floor(Math.random() * (maxTop - this.minTopPipeHeight + 1)) + this.minTopPipeHeight,
+                        passed: false
+                    });
                 }
+                
                 for (let i = 0; i < this.position.length; i++) {
-                    let p = this.position[i]; p.x -= gameSpeed;
-                    if (!p.passed && p.x + this.width < bird.x) { p.passed = true; score++; document.getElementById('scoreBox').textContent = score; }
-                    let hitBoxMargin = 6; 
-                    if ( bird.x + bird.width/2 - hitBoxMargin > p.x && bird.x - bird.width/2 + hitBoxMargin < p.x + this.width && (bird.y - bird.height/2 + hitBoxMargin < p.top || bird.y + bird.height/2 - hitBoxMargin > p.top + this.gap)) { gameOver(); }
+                    let p = this.position[i];
+                    p.x -= gameSpeed;
+                    
+                    // 檢查是否通過水管
+                    if (!p.passed && p.x + this.width < bird.x) {
+                        p.passed = true;
+                        score++;
+                        document.getElementById('scoreBox').textContent = score;
+                    }
+                    
+                    // 使用新的碰撞檢測方法
+                    const topPipeRect = {
+                        x: p.x + this.pipeMargin,
+                        y: 0 + this.pipeMargin,
+                        width: this.width - this.pipeMargin * 2,
+                        height: p.top - this.pipeMargin * 2
+                    };
+                    
+                    const bottomPipeRect = {
+                        x: p.x + this.pipeMargin,
+                        y: p.top + this.gap + this.pipeMargin,
+                        width: this.width - this.pipeMargin * 2,
+                        height: canvas.height - (p.top + this.gap) - ground.height - this.pipeMargin * 2
+                    };
+                    
+                    // 檢查與上下水管的碰撞
+                    if (bird.collidesWithRect(topPipeRect.x, topPipeRect.y, topPipeRect.width, topPipeRect.height) ||
+                        bird.collidesWithRect(bottomPipeRect.x, bottomPipeRect.y, bottomPipeRect.width, bottomPipeRect.height)) {
+                        gameOver();
+                    }
+                    
+                    // 移除超出畫面的水管
                     if (p.x + this.width < 0) this.position.shift();
                 }
             },
@@ -570,7 +715,37 @@
         function startGame() { if (gameRunning) return; gameOverScreen.style.display = 'none'; score = 0; frames = 0; document.getElementById('scoreBox').textContent = score; gameStatusElement.textContent = "FLYING!"; gameStatusElement.style.color = "#2ecc71"; bird.reset(); pipes.reset(); gameRunning = true; gamePaused = false; update(); }
         function pauseGame() { if (!gameRunning) return; gamePaused = !gamePaused; if (gamePaused) { gameStatusElement.textContent = "PAUSED"; gameStatusElement.style.color = "#f1c40f"; } else { gameStatusElement.textContent = "FLYING!"; gameStatusElement.style.color = "#2ecc71"; update(); } }
         function resetGame() { gameRunning = false; gamePaused = false; gameOverScreen.style.display = 'none'; score = 0; document.getElementById('scoreBox').textContent = score; gameStatusElement.textContent = "PRESS SPACE TO START"; gameStatusElement.style.color = "#f1c40f"; bird.reset(); pipes.reset(); background.cloudOffset = 0; ground.offset = 0; draw(); }
-        document.addEventListener('keydown', (e) => { if (gameOverScreen.style.display === 'flex') { if (e.key === ' ' || e.key === 'Spacebar' || e.key === 'r' || e.key === 'R' || e.key === 'Enter') { resetGame(); e.preventDefault(); return; } } switch (e.key) { case ' ': case 'Spacebar': case 'ArrowUp': if (!gameRunning) startGame(); else if (!gamePaused) bird.jump(); e.preventDefault(); break; case 'p': case 'P': pauseGame(); e.preventDefault(); break; case 'r': case 'R': resetGame(); e.preventDefault(); break; } });
+        document.addEventListener('keydown', (e) => {
+            if (gameOverScreen.style.display === 'flex') {
+                if (e.key === ' ' || e.key === 'Spacebar' || e.key === 'r' || e.key === 'R' || e.key === 'Enter') {
+                    resetGame();
+                    e.preventDefault();
+                    return;
+                }
+            }
+            switch (e.key) {
+                case ' ': case 'Spacebar': case 'ArrowUp':
+                    if (!gameRunning) startGame();
+                    else if (!gamePaused) bird.jump();
+                    e.preventDefault();
+                    break;
+                case 'p': case 'P':
+                    pauseGame();
+                    e.preventDefault();
+                    break;
+                case 'r': case 'R':
+                    resetGame();
+                    e.preventDefault();
+                    break;
+                case 'd': case 'D':
+                    // 切換除錯模式
+                    bird.debugMode = !bird.debugMode;
+                    gameStatusElement.textContent = bird.debugMode ? "DEBUG MODE ON" : "DEBUG MODE OFF";
+                    gameStatusElement.style.color = bird.debugMode ? "#9b59b6" : "#f1c40f";
+                    e.preventDefault();
+                    break;
+            }
+        });
         canvas.addEventListener('click', () => { if (gameOverScreen.style.display === 'flex') return; if (!gameRunning) startGame(); else if (!gamePaused) bird.jump(); });
         startBtn.addEventListener('click', startGame); pauseBtn.addEventListener('click', pauseGame); resetBtn.addEventListener('click', resetGame); overlayRestartBtn.addEventListener('click', resetGame);
         loadHighScore(); background.draw(); ground.draw(); bird.draw();
