@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全螢幕凌空畫畫 (高平滑防抖版)</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; user-select: none; }
+        
+        #webcam {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            transform: scaleX(-1);
+            z-index: 1;
+        }
+
+        #game-canvas, #ui-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+        }
+        
+        #game-canvas { z-index: 2; }
+        #ui-canvas { z-index: 3; }
+        
+        #loading-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            z-index: 10;
+            font-weight: bold;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            font-family: sans-serif;
+        }
+        
+        #status-text {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 24px;
+            z-index: 10;
+            font-weight: bold;
+            color: #FFFF00;
+            text-shadow: 2px 2px 4px #000;
+            font-family: sans-serif;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+    <video id="webcam" autoplay playsinline></video>
+    <canvas id="game-canvas"></canvas>
+    <canvas id="ui-canvas"></canvas>
+    <div id="loading-text">載入攝影機與 AI 模型中...</div>
+    <div id="status-text">狀態：尋找手勢...</div>
+
+<script>
+    const canvas = document.getElementById('game-canvas');
+    const ctx = canvas.getContext('2d');
+    const uiCanvas = document.getElementById('ui-canvas');
+    const uiCtx = uiCanvas.getContext('2d');
+    const videoElement = document.getElementById('webcam');
+    const loadingText = document.getElementById('loading-text');
+    const statusText = document.getElementById('status-text');
+
+    let isPlaying = false;
+    let lastPoint = null; 
+    
+    // --- 繪圖狀態機變數 ---
+    let drawState = 'INIT'; 
+    let pendingAction = null; 
+    let actionStartTime = 0;
+    let idleStartTime = 0;
+    let refPoint = null; 
+    
+    // --- 平滑化變數 ---
+    let smoothedPoint = null;
+    const SMOOTHING_FACTOR = 0.6; // 平滑度 (0~1)。數值越大越平滑，但會有一點「拖尾」感。建議值 0.5~0.8
+    
+    // --- 核心時間與靈敏度參數 ---
+    const START_DELAY = 750;     // 綠圈：起筆延遲 0.75 秒
+    const CLEAR_DELAY = 1500;    // 紅圈：清除延遲 1.5 秒
+    const IDLE_DELAY = 2000;     // 藍圈：靜止斷筆 2.0 秒
+    const JITTER_THRESHOLD = 25; // 手震容差，移動超過此數值才算移動
+
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        uiCanvas.width = window.innerWidth;
+        uiCanvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // 筆刷設定：加入 round 確保接點滑順
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 10; // 稍微加粗，讓鋸齒更不明顯
+    ctx.strokeStyle = '#FFFF00'; 
+
+    const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+    hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
+    hands.onResults(onResults);
+
+    const camera = new Camera(videoElement, {
+        onFrame: async () => { await hands.send({image: videoElement}); },
+        width: 1280, height: 720
+    });
+
+    camera.start().then(() => {
+        loadingText.style.display = 'none';
+        isPlaying = true;
+    });
+
+    function drawProgressCircle(x, y, progress, color) {
+        uiCtx.beginPath();
+        uiCtx.arc(x, y, 25, 0, Math.PI * 2);
+        uiCtx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        uiCtx.lineWidth = 6;
+        uiCtx.stroke();
+
+        uiCtx.beginPath();
+        const startAngle = -Math.PI / 2;
+        const endAngle = startAngle + (Math.PI * 2 * progress);
+        uiCtx.arc(x, y, 25, startAngle, endAngle);
+        uiCtx.strokeStyle = color;
+        uiCtx.lineWidth = 6;
+        uiCtx.stroke();
+    }
+
+    function resetSmoothing() {
+        smoothedPoint = null;
+    }
+
+    function onResults(results) {
+        if (!isPlaying) return;
+
+        uiCtx.clearRect(0, 0, uiCanvas.width, uiCanvas.height);
+
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+            const landmarks = results.multiHandLandmarks[0];
+
+            const isIndexExt = landmarks[8].y < landmarks[6].y;
+            const isMiddleExt = landmarks[12].y < landmarks[10].y;
+            const isRingExt = landmarks[16].y < landmarks[14].y;
+            const isPinkyExt = landmarks[20].y < landmarks[18].y;
+
+            const isOpenHand = isIndexExt && isMiddleExt && isRingExt && isPinkyExt; 
+            const isFist = !isIndexExt && !isMiddleExt && !isRingExt && !isPinkyExt; 
+            const isDrawingGesture = isIndexExt && !isMiddleExt && !isRingExt && !isPinkyExt; 
+
+            // 取得原始座標
+            const rawX = (1 - landmarks[8].x) * canvas.width;
+            const rawY = landmarks[8].y * canvas.height;
+            const now = Date.now();
+
+            // 套用指數移動平均 (EMA) 進行座標平滑化
+            if (!smoothedPoint) {
+                smoothedPoint = { x: rawX, y: rawY };
+            } else {
+                smoothedPoint.x = smoothedPoint.x * SMOOTHING_FACTOR + rawX * (1 - SMOOTHING_FACTOR);
+                smoothedPoint.y = smoothedPoint.y * SMOOTHING_FACTOR + rawY * (1 - SMOOTHING_FACTOR);
+            }
+            
+            // 後續繪圖皆使用平滑化後的座標
+            const currentX = smoothedPoint.x;
+            const currentY = smoothedPoint.y;
+
+            if (isOpenHand) {
+                drawState = 'INIT';
+                refPoint = null;
+                lastPoint = null;
+                resetSmoothing();
+
+                if (pendingAction !== 'CLEAR') {
+                    pendingAction = 'CLEAR';
+                    actionStartTime = now;
+                }
+
+                let progress = (now - actionStartTime) / CLEAR_DELAY;
+                
+                if (progress >= 1) {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    pendingAction = null; 
+                    statusText.innerText = "狀態：已清除畫布";
+                } else {
+                    drawProgressCircle(currentX, currentY, progress, '#FF0000');
+                    statusText.innerText = `狀態：準備清除 (${Math.round(progress*100)}%)`;
+                }
+            } 
+            else if (isFist) {
+                drawState = 'INIT';
+                pendingAction = null;
+                refPoint = null;
+                lastPoint = null;
+                resetSmoothing();
+                statusText.innerText = "狀態：提筆暫停 (握拳)";
+            } 
+            else if (isDrawingGesture) {
+                pendingAction = null; 
+
+                // 判斷移動幅度時，為了精準判定，使用 rawX/rawY 判斷靜止
+                if (!refPoint) refPoint = { x: rawX, y: rawY };
+                const dist = Math.hypot(rawX - refPoint.x, rawY - refPoint.y);
+                const isMoving = dist > JITTER_THRESHOLD;
+
+                if (drawState === 'INIT') {
+                    drawState = 'STARTING';
+                    actionStartTime = now;
+                } else if (drawState === 'STOPPED_BY_IDLE') {
+                    if (isMoving) {
+                        drawState = 'STARTING';
+                        actionStartTime = now;
+                        refPoint = { x: rawX, y: rawY };
+                    } else {
+                        statusText.innerText = "狀態：靜止已停筆 (請大動作移動食指起筆)";
+                    }
+                }
+
+                if (drawState === 'STARTING') {
+                    let progress = (now - actionStartTime) / START_DELAY;
+                    if (progress >= 1) {
+                        drawState = 'DRAWING';
+                        lastPoint = { x: currentX, y: currentY };
+                        refPoint = { x: rawX, y: rawY };
+                    } else {
+                        drawProgressCircle(currentX, currentY, progress, '#00FF00');
+                        statusText.innerText = `狀態：準備畫圖 (${Math.round(progress*100)}%)`;
+                    }
+                }
+
+                if (drawState === 'DRAWING') {
+                    if (isMoving) {
+                        ctx.beginPath();
+                        ctx.moveTo(lastPoint.x, lastPoint.y);
+                        ctx.lineTo(currentX, currentY);
+                        ctx.stroke();
+                        
+                        lastPoint = { x: currentX, y: currentY };
+                        refPoint = { x: rawX, y: rawY }; 
+                        idleStartTime = 0; 
+                        
+                        uiCtx.beginPath();
+                        uiCtx.arc(currentX, currentY, 8, 0, Math.PI * 2);
+                        uiCtx.fillStyle = '#00FF00';
+                        uiCtx.fill();
+                        statusText.innerText = "狀態：畫畫中";
+                    } else {
+                        if (idleStartTime === 0) idleStartTime = now;
+                        let progress = (now - idleStartTime) / IDLE_DELAY;
+                        
+                        uiCtx.beginPath();
+                        uiCtx.arc(currentX, currentY, 8, 0, Math.PI * 2);
+                        uiCtx.fillStyle = '#00FF00';
+                        uiCtx.fill();
+
+                        if (progress >= 1) {
+                            drawState = 'STOPPED_BY_IDLE';
+                            idleStartTime = 0;
+                            lastPoint = null;
+                            resetSmoothing();
+                        } else {
+                            drawProgressCircle(currentX, currentY, progress, '#0000FF');
+                            statusText.innerText = `狀態：靜止停筆倒數 (${Math.round(progress*100)}%)`;
+                        }
+                    }
+                }
+            } 
+            else {
+                drawState = 'INIT';
+                pendingAction = null;
+                refPoint = null;
+                lastPoint = null;
+                resetSmoothing();
+                statusText.innerText = "狀態：等待標準手勢...";
+            }
+
+        } else {
+            drawState = 'INIT';
+            pendingAction = null;
+            refPoint = null;
+            lastPoint = null;
+            resetSmoothing();
+            statusText.innerText = "狀態：手離開畫面";
+        }
+    }
+</script>
+</body>
+</html>
