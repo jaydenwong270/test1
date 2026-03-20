@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>西部神槍手：手勢射擊 (手腕上抬 + 智慧鎖定)</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #87CEEB; font-family: 'Courier New', Courier, monospace; user-select: none; }
+        #game-container { position: relative; width: 100vw; height: 100vh; }
+        #webcam { position: absolute; bottom: 10px; right: 10px; width: 240px; height: 180px; transform: scaleX(-1); border: 3px solid #333; z-index: 10; border-radius: 8px; opacity: 0.8; }
+        #game-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; }
+        
+        /* UI 介面 */
+        #ui-layer { position: absolute; top: 15px; left: 20px; z-index: 10; font-size: 24px; font-weight: bold; color: #333; display: none; width: 95%; }
+        .stats-bar { display: flex; justify-content: space-between; align-items: center; }
+        .ammo-container { display: flex; gap: 8px; margin-top: 10px; }
+        .bullet { width: 12px; height: 25px; background-color: #ffd700; border: 2px solid #b8860b; border-radius: 50% 50% 0 0; }
+        .bullet.empty { background-color: #ccc; border-color: #999; }
+        
+        /* 換彈與狀態提示 */
+        #reload-warning { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 48px; color: red; font-weight: bold; text-shadow: 2px 2px 0 #000; display: none; z-index: 15; }
+        #loading-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 24px; z-index: 25; font-weight: bold; background: white; padding: 10px 20px; border-radius: 10px; display: none;}
+        
+        /* 選單與結算 */
+        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 20; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; }
+        .overlay-box { background: #f4e7d3; padding: 40px; border: 4px solid #8b5a2b; border-radius: 10px; text-align: center; color: #333; }
+        button { font-size: 20px; margin: 10px; padding: 10px 20px; cursor: pointer; background-color: #8b5a2b; color: white; border: none; border-radius: 5px; font-weight: bold; }
+        button:hover { background-color: #a0522d; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<div id="game-container">
+    <video id="webcam" autoplay playsinline></video>
+    <canvas id="game-canvas"></canvas>
+    
+    <div id="ui-layer">
+        <div class="stats-bar">
+            <div>分數: <span id="score">0</span></div>
+            <div>時間: <span id="time">60</span>s</div>
+            <div>生命: <span id="lives">❤️❤️❤️</span></div>
+        </div>
+        <div class="ammo-container" id="ammo-display"></div>
+    </div>
+
+    <div id="reload-warning">自動換彈中...</div>
+    <div id="loading-text">載入 AI 模型與攝影機中，請稍候...</div>
+
+    <div id="menu" class="overlay">
+        <div class="overlay-box">
+            <h1>西部神槍手</h1>
+            <p>手勢玩法：比出手槍姿勢，食指瞄準，<strong>手腕瞬間往上抬</strong>模擬後座力射擊</p>
+            <button id="btn-simple">簡單模式</button>
+            <button id="btn-hard">困難模式</button>
+        </div>
+    </div>
+
+    <div id="game-over" class="overlay" style="display: none;">
+        <div class="overlay-box">
+            <h1>遊戲結束</h1>
+            <h2>最終分數: <span id="final-score">0</span></h2>
+            <button onclick="location.reload()">回主選單</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('game-canvas');
+    const ctx = canvas.getContext('2d');
+    const videoElement = document.getElementById('webcam');
+    
+    // UI Elements
+    const uiLayer = document.getElementById('ui-layer');
+    const menu = document.getElementById('menu');
+    const gameOverScreen = document.getElementById('game-over');
+    const scoreEl = document.getElementById('score');
+    const timeEl = document.getElementById('time');
+    const livesEl = document.getElementById('lives');
+    const ammoDisplay = document.getElementById('ammo-display');
+    const reloadWarning = document.getElementById('reload-warning');
+    const loadingText = document.getElementById('loading-text');
+
+    // Game Variables
+    let mode = '';
+    let isPlaying = false;
+    let score = 0;
+    let time = 60;
+    let lives = 3;
+    let ammo = 6;
+    let isReloading = false;
+    let timerInterval;
+    
+    // Entities
+    let targets = [];
+    let crosshair = { x: canvas.width/2, y: canvas.height/2 };
+    
+    // Gesture Tracking (回調為手腕上抬機制)
+    let prevWristY = 0;
+    let lastShootTime = 0;
+    const RECOIL_THRESHOLD = 0.04; // 上抬觸發閾值 (數值越小越靈敏)
+    const SHOOT_COOLDOWN = 300;    // 射擊冷卻時間(毫秒)
+    
+    // 方案 A：磁性瞄準半徑 (數值越大，越容易打中目標)
+    const MAGNETIC_RADIUS = 150; 
+
+    // Resize Canvas
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // UI Updates
+    function updateAmmoUI() {
+        ammoDisplay.innerHTML = '';
+        for (let i = 0; i < 6; i++) {
+            const bullet = document.createElement('div');
+            bullet.className = `bullet ${i < ammo ? '' : 'empty'}`;
+            ammoDisplay.appendChild(bullet);
+        }
+    }
+    
+    function updateLivesUI() {
+        livesEl.innerText = '❤️'.repeat(lives) + '🖤'.repeat(3 - lives);
+    }
+
+    // --- MediaPipe Hands Setup ---
+    const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+    hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
+    hands.onResults(onResults);
+
+    const camera = new Camera(videoElement, {
+        onFrame: async () => { await hands.send({image: videoElement}); },
+        width: 320, height: 240
+    });
+
+    // --- Gesture Logic ---
+    function onResults(results) {
+        if (!isPlaying) return;
+
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+            const landmarks = results.multiHandLandmarks[0];
+            
+            // 1. 更新準心位置 (食指尖 landmark 8)
+            crosshair.x = (1 - landmarks[8].x) * canvas.width;
+            crosshair.y = landmarks[8].y * canvas.height;
+
+            // 2. 偵測手腕上抬射擊 (landmark 0)
+            const currentWristY = landmarks[0].y;
+            const now = Date.now();
+            
+            if (prevWristY - currentWristY > RECOIL_THRESHOLD && (now - lastShootTime > SHOOT_COOLDOWN)) {
+                shoot();
+                lastShootTime = now;
+            }
+            prevWristY = currentWristY;
+        }
+    }
+
+    // --- Game Logic ---
+    function shoot() {
+        if (isReloading || ammo <= 0) return;
+        
+        ammo--;
+        updateAmmoUI();
+        drawShootFlash(); 
+
+        // --- 方案 A：智慧瞄準鎖定邏輯 ---
+        let lockedTarget = null;
+        let closestDist = Infinity;
+
+        // 1. 尋找距離準心最近、且在磁性半徑內的目標
+        for (let i = 0; i < targets.length; i++) {
+            const t = targets[i];
+            const distToCrosshair = Math.hypot(crosshair.x - t.x, crosshair.y - t.y);
+            
+            if (distToCrosshair < MAGNETIC_RADIUS && distToCrosshair < closestDist) {
+                lockedTarget = t;
+                closestDist = distToCrosshair;
+            }
+        }
+
+        // 2. 修正彈道點到目標中心
+        const bulletHitPoint = lockedTarget ? { x: lockedTarget.x, y: lockedTarget.y } : { x: crosshair.x, y: crosshair.y };
+
+        // 3. 執行碰撞偵測
+        for (let i = targets.length - 1; i >= 0; i--) {
+            const t = targets[i];
+            const dist = Math.hypot(bulletHitPoint.x - t.x, bulletHitPoint.y - t.y);
+            
+            if (dist < t.radius * 1.5) { 
+                if (t.type === 'balloon') {
+                    score += 10;
+                } else if (t.type === 'bomb') {
+                    score -= 5;
+                    lives--;
+                    updateLivesUI();
+                    if (lives <= 0) endGame();
+                }
+                scoreEl.innerText = score;
+                targets.splice(i, 1);
+                break; 
+            }
+        }
+
+        if (ammo === 0) {
+            isReloading = true;
+            reloadWarning.style.display = 'block';
+            setTimeout(() => {
+                if(!isPlaying) return;
+                ammo = 6;
+                isReloading = false;
+                reloadWarning.style.display = 'none';
+                updateAmmoUI();
+            }, 1500); 
+        }
+    }
+
+    function spawnTarget() {
+        if (!isPlaying) return;
+        
+        const isHard = mode === 'hard';
+        const balloonChance = isHard ? 0.015 : 0.02;
+        const bombChance = isHard ? 0.01 : 0.002;
+
+        const rand = Math.random();
+        let type = null;
+        let speedY = isHard ? (Math.random() * 3 + 4) : (Math.random() * 2 + 2);
+
+        if (rand < bombChance) {
+            type = 'bomb';
+        } else if (rand < bombChance + balloonChance) {
+            type = 'balloon';
+        }
+
+        if (type) {
+            targets.push({
+                x: Math.random() * (canvas.width - 60) + 30,
+                y: -50,
+                radius: 30,
+                type: type,
+                speedY: speedY
+            });
+        }
+    }
+
+    function updateTargets() {
+        for (let i = targets.length - 1; i >= 0; i--) {
+            targets[i].y += targets[i].speedY;
+            if (targets[i].y > canvas.height + 50) {
+                targets.splice(i, 1);
+            }
+        }
+    }
+
+    // --- Drawing Logic ---
+    let flashAlpha = 0;
+    function drawShootFlash() { flashAlpha = 0.3; }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // 畫射擊閃光
+        if (flashAlpha > 0) {
+            ctx.fillStyle = `rgba(255, 255, 0, ${flashAlpha})`;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            flashAlpha -= 0.05;
+        }
+
+        if (!isPlaying) return;
+
+        // 畫目標
+        targets.forEach(t => {
+            ctx.beginPath();
+            ctx.arc(t.x, t.y, t.radius, 0, Math.PI * 2);
+            if (t.type === 'balloon') {
+                ctx.fillStyle = '#ff4d4d';
+                ctx.fill();
+                ctx.beginPath(); ctx.moveTo(t.x, t.y + t.radius); ctx.lineTo(t.x, t.y + t.radius + 20); ctx.strokeStyle = '#fff'; ctx.stroke();
+            } else {
+                ctx.fillStyle = '#222';
+                ctx.fill();
+                ctx.beginPath(); ctx.moveTo(t.x, t.y - t.radius); ctx.lineTo(t.x + 10, t.y - t.radius - 10); ctx.strokeStyle = '#ffa500'; ctx.lineWidth = 3; ctx.stroke(); ctx.lineWidth = 1;
+            }
+        });
+
+        // 畫準心 (十字)
+        ctx.beginPath();
+        ctx.moveTo(crosshair.x - 20, crosshair.y);
+        ctx.lineTo(crosshair.x + 20, crosshair.y);
+        ctx.moveTo(crosshair.x, crosshair.y - 20);
+        ctx.lineTo(crosshair.x, crosshair.y + 20);
+        ctx.strokeStyle = 'lime';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        // 畫準心外圈
+        ctx.beginPath();
+        ctx.arc(crosshair.x, crosshair.y, 15, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+
+    function gameLoop() {
+        spawnTarget();
+        updateTargets();
+        draw();
+        if (isPlaying) requestAnimationFrame(gameLoop);
+    }
+
+    // --- Game Control ---
+    function startGame(selectedMode) {
+        mode = selectedMode;
+        menu.style.display = 'none';
+        loadingText.style.display = 'block';
+
+        camera.start().then(() => {
+            loadingText.style.display = 'none';
+            uiLayer.style.display = 'block';
+            isPlaying = true;
+            score = 0; time = 60; lives = 3; ammo = 6; targets = []; isReloading = false;
+            
+            scoreEl.innerText = score;
+            timeEl.innerText = time;
+            updateLivesUI();
+            updateAmmoUI();
+            reloadWarning.style.display = 'none';
+
+            timerInterval = setInterval(() => {
+                time--;
+                timeEl.innerText = time;
+                if (time <= 0) endGame();
+            }, 1000);
+
+            gameLoop();
+        }).catch(err => {
+            alert('無法存取攝影機，請確認權限！');
+            location.reload();
+        });
+    }
+
+    function endGame() {
+        isPlaying = false;
+        clearInterval(timerInterval);
+        uiLayer.style.display = 'none';
+        reloadWarning.style.display = 'none';
+        gameOverScreen.style.display = 'flex';
+        document.getElementById('final-score').innerText = score;
+        camera.stop();
+    }
+
+    document.getElementById('btn-simple').addEventListener('click', () => startGame('simple'));
+    document.getElementById('btn-hard').addEventListener('click', () => startGame('hard'));
+
+</script>
+</body>
+</html>
