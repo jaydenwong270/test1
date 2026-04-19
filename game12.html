@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Tiles | 霓虹鋼琴塊</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Poppins:wght@600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0a0a14;
+            color: white;
+            font-family: 'Poppins', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 400px;
+            height: 750px;
+            background: linear-gradient(180deg, #120b2e 0%, #2a1b54 50%, #4b2c82 100%);
+            border: 4px solid #1f1f2e;
+            border-radius: 12px;
+            box-shadow: 0 0 40px rgba(189, 0, 255, 0.2);
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* --- UI 覆蓋層 --- */
+        .overlay-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(5, 5, 10, 0.85);
+            z-index: 20;
+            backdrop-filter: blur(4px);
+        }
+
+        h1 {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 2.5rem;
+            color: #00ffcc;
+            text-shadow: 0 0 20px #00ffcc;
+            margin-bottom: 20px;
+            text-align: center;
+            line-height: 1.4;
+            transition: color 0.3s, text-shadow 0.3s;
+        }
+
+        p {
+            font-size: 1rem;
+            color: #a0a0b0;
+            margin-bottom: 20px;
+            text-align: center;
+            padding: 0 20px;
+            line-height: 1.6;
+        }
+
+        button.btn-primary, button.btn-secondary {
+            padding: 15px 40px;
+            font-size: 1rem;
+            font-weight: bold;
+            font-family: 'Press Start 2P', cursive;
+            color: #fff;
+            background: transparent;
+            border: 3px solid #bd00ff;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 15px rgba(189, 0, 255, 0.5), inset 0 0 15px rgba(189, 0, 255, 0.5);
+            text-shadow: 0 0 5px #fff;
+            width: 80%;
+            max-width: 300px;
+            margin-bottom: 15px;
+        }
+
+        button.btn-primary:hover {
+            background: #bd00ff;
+            box-shadow: 0 0 30px rgba(189, 0, 255, 0.8), inset 0 0 20px rgba(255, 255, 255, 0.5);
+            transform: scale(1.05);
+        }
+
+        button.btn-secondary {
+            border-color: #00ffcc;
+            box-shadow: 0 0 15px rgba(0, 255, 204, 0.5), inset 0 0 15px rgba(0, 255, 204, 0.5);
+        }
+
+        button.btn-secondary:hover {
+            background: #00ffcc;
+            color: #000;
+            text-shadow: none;
+            box-shadow: 0 0 30px rgba(0, 255, 204, 0.8), inset 0 0 20px rgba(255, 255, 255, 0.5);
+            transform: scale(1.05);
+        }
+
+        /* --- 歌曲選單 --- */
+        #song-selection {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-y: auto;
+            max-height: 50vh; 
+            padding: 10px 0 20px 0;
+        }
+
+        #song-selection::-webkit-scrollbar { width: 6px; }
+        #song-selection::-webkit-scrollbar-thumb { background: #bd00ff; border-radius: 10px; }
+        #song-selection::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 10px; }
+
+        .song-btn {
+            width: 80%;
+            background: rgba(20, 15, 40, 0.9);
+            border: 2px solid #bd00ff;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-shadow: 0 0 15px rgba(189, 0, 255, 0.2);
+            flex-shrink: 0;
+        }
+
+        .song-btn:hover {
+            background: #bd00ff;
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(189, 0, 255, 0.6);
+        }
+
+        .song-btn:hover .song-title, .song-btn:hover .song-artist {
+            color: #fff;
+            text-shadow: none;
+        }
+
+        .song-title {
+            font-family: 'Poppins', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: #00ffcc;
+            margin-bottom: 5px;
+            text-align: center;
+        }
+
+        .song-artist {
+            font-family: 'Poppins', sans-serif;
+            font-size: 0.9rem;
+            color: #a0a0b0;
+        }
+
+        /* --- 等級與進度條 --- */
+        #grade-hud {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            z-index: 5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            pointer-events: none;
+        }
+
+        #grade-icons {
+            display: flex;
+            justify-content: center;
+            gap: 25px;
+            margin-bottom: 8px;
+        }
+
+        .grade-icon {
+            font-size: 1.5rem;
+            filter: grayscale(100%) opacity(0.3);
+            transition: all 0.3s ease;
+        }
+
+        .grade-icon.active {
+            filter: grayscale(0%) opacity(1);
+            transform: scale(1.3);
+            text-shadow: 0 0 15px rgba(255, 255, 255, 0.8);
+        }
+
+        #grade-bar-bg {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+            overflow: hidden;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
+        }
+
+        #grade-bar-fill {
+            width: 0%;
+            height: 100%;
+            background: #00ffcc;
+            border-radius: 3px;
+            transition: width 0.1s linear, background-color 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 0 10px #00ffcc;
+        }
+
+        /* --- 頂部資訊欄 --- */
+        #hud {
+            position: absolute;
+            top: 75px;
+            left: 0; width: 100%;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            box-sizing: border-box;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .score-box {
+            font-family: 'Poppins', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: #fff;
+            text-shadow: 0 0 10px #00ffcc;
+            width: 100%;
+            text-align: center;
+        }
+
+        .combo-box {
+            position: absolute;
+            top: 125px;
+            width: 100%;
+            text-align: center;
+            font-size: 1.2rem;
+            color: #ff007f;
+            font-weight: bold;
+            text-shadow: 0 0 10px #ff007f;
+            opacity: 0;
+            transition: opacity 0.2s, transform 0.1s;
+            pointer-events: none;
+            z-index: 5;
+        }
+        .combo-active {
+            opacity: 1;
+            transform: scale(1.2);
+        }
+
+        /* --- 鍵盤提示 --- */
+        .key-hints {
+            position: absolute;
+            bottom: 10px;
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            padding: 0 10px;
+            box-sizing: border-box;
+            pointer-events: none;
+            z-index: 5;
+        }
+        .key-hint {
+            width: 25%;
+            text-align: center;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 1rem;
+            color: rgba(255,255,255,0.4);
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        
+        <div id="grade-hud">
+            <div id="grade-icons">
+                <div class="grade-icon" id="icon0">⭐</div>
+                <div class="grade-icon" id="icon1">⭐</div>
+                <div class="grade-icon" id="icon2">⭐</div>
+            </div>
+            <div id="grade-bar-bg">
+                <div id="grade-bar-fill"></div>
+            </div>
+        </div>
+
+        <div id="hud">
+            <div class="score-box" id="scoreVal">0</div>
+        </div>
+        <div class="combo-box" id="comboVal">COMBO x0</div>
+        
+        <canvas id="gameCanvas" width="400" height="750"></canvas>
+
+        <div class="key-hints">
+            <div class="key-hint">D</div>
+            <div class="key-hint">F</div>
+            <div class="key-hint">J</div>
+            <div class="key-hint">K</div>
+        </div>
+
+        <!-- 覆蓋層選單 (包含選歌與結算) -->
+        <div id="ui-layer" class="overlay-layer">
+            <h1 id="titleText">NEON<br>TILES</h1>
+            <p id="descText">使用鍵盤 D, F, J, K 或點擊軌道。<br><br>長按紫色方塊直到結束，<br>點到空白處即刻失敗！</p>
+            
+            <div id="song-selection"></div>
+
+            <div id="game-over-menu" style="display: none; width: 100%; flex-direction: column; align-items: center;">
+                <button id="restartBtn" class="btn-primary">TRY AGAIN</button>
+                <button id="changeSongBtn" class="btn-secondary">CHANGE SONG</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const uiLayer = document.getElementById('ui-layer');
+        const titleText = document.getElementById('titleText');
+        const descText = document.getElementById('descText');
+        const scoreVal = document.getElementById('scoreVal');
+        const comboVal = document.getElementById('comboVal');
+        
+        const songSelectionMenu = document.getElementById('song-selection');
+        const gameOverMenu = document.getElementById('game-over-menu');
+        const restartBtn = document.getElementById('restartBtn');
+        const changeSongBtn = document.getElementById('changeSongBtn');
+
+        // --- 遊戲變數 ---
+        let animationId;
+        let isGameRunning = false;
+        let score = 0;
+        let combo = 0;
+        
+        // 【速度翻倍調整】
+        let baseSpeed = 10;
+        let currentSpeed = 10;
+        let speedMultiplier = 1;
+
+        const LANES = 4;
+        const laneWidth = canvas.width / LANES;
+        const HIT_ZONE_Y = canvas.height - 150; 
+        
+        // 【判定與節拍調整】為了適應 10 的高速，放大節拍距離
+        const PIXELS_PER_BEAT = 400; 
+        const SHORT_HEIGHT = 150;    
+        let lastSpawnY = HIT_ZONE_Y - 1200; // 給予大約 1.5 秒的反應時間
+        let lastLane = -1;
+
+        let tiles = [];
+        let particles = [];
+        let feedbackTexts = [];
+
+        const keys = { 'd': 0, 'f': 1, 'j': 2, 'k': 3 };
+        const lanePressed = [false, false, false, false];
+
+        // --- 里程碑 (星級與皇冠) 變數 ---
+        const MILESTONES = [
+            { type: 'star', score: 500, symbol: '⭐' },
+            { type: 'star', score: 1500, symbol: '⭐' },
+            { type: 'star', score: 3000, symbol: '⭐' },
+            { type: 'crown', score: 6000, symbol: '👑' },
+            { type: 'crown', score: 10000, symbol: '👑' },
+            { type: 'crown', score: 15000, symbol: '👑' },
+            { type: 'max', score: Infinity, symbol: '👑' }
+        ];
+        let currentMilestoneIdx = 0;
+
+        // --- 音樂與樂譜資料 ---
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+
+        function initAudio() {
+            if (!audioCtx) audioCtx = new AudioCtx();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        const Freq = { LowSol: 196.00, Do: 261.63, Re: 293.66, Mi: 329.63, Fa: 349.23, Sol: 392.00, La: 440.00 };
+
+        const SONGS_DATA = [
+            {
+                name: "歡樂頌 (Ode to Joy)",
+                artist: "Ludwig van Beethoven",
+                notes: [
+                    { f: Freq.Mi, d: 1 }, { f: Freq.Mi, d: 1 }, { f: Freq.Fa, d: 1 }, { f: Freq.Sol, d: 1 },
+                    { f: Freq.Sol, d: 1 }, { f: Freq.Fa, d: 1 }, { f: Freq.Mi, d: 1 }, { f: Freq.Re, d: 1 },
+                    { f: Freq.Do, d: 1 }, { f: Freq.Do, d: 1 }, { f: Freq.Re, d: 1 }, { f: Freq.Mi, d: 1 },
+                    { f: Freq.Mi, d: 1.5, type: 'long' }, { f: Freq.Re, d: 0.5 }, { f: Freq.Re, d: 2, type: 'long' },
+                    
+                    { f: Freq.Mi, d: 1 }, { f: Freq.Mi, d: 1 }, { f: Freq.Fa, d: 1 }, { f: Freq.Sol, d: 1 },
+                    { f: Freq.Sol, d: 1 }, { f: Freq.Fa, d: 1 }, { f: Freq.Mi, d: 1 }, { f: Freq.Re, d: 1 },
+                    { f: Freq.Do, d: 1 }, { f: Freq.Do, d: 1 }, { f: Freq.Re, d: 1 }, { f: Freq.Mi, d: 1 },
+                    { f: Freq.Re, d: 1.5, type: 'long' }, { f: Freq.Do, d: 0.5 }, { f: Freq.Do, d: 2, type: 'long' },
+                    
+                    { f: Freq.Re, d: 1 }, { f: Freq.Re, d: 1 }, { f: Freq.Mi, d: 1 }, { f: Freq.Do, d: 1 },
+                    { f: Freq.Re, d: 1 }, { f: Freq.Mi, d: 0.5 }, { f: Freq.Fa, d: 0.5 }, { f: Freq.Mi, d: 1 }, { f: Freq.Do, d: 1 },
+                    { f: Freq.Re, d: 1 }, { f: Freq.Mi, d: 0.5 }, { f: Freq.Fa, d: 0.5 }, { f: Freq.Mi, d: 1 }, { f: Freq.Re, d: 1 },
+                    { f: Freq.Do, d: 1 }, { f: Freq.Re, d: 1 }, { f: Freq.LowSol, d: 2, type: 'long' },
+                    
+                    { f: Freq.Mi, d: 1 }, { f: Freq.Mi, d: 1 }, { f: Freq.Fa, d: 1 }, { f: Freq.Sol, d: 1 },
+                    { f: Freq.Sol, d: 1 }, { f: Freq.Fa, d: 1 }, { f: Freq.Mi, d: 1 }, { f: Freq.Re, d: 1 },
+                    { f: Freq.Do, d: 1 }, { f: Freq.Do, d: 1 }, { f: Freq.Re, d: 1 }, { f: Freq.Mi, d: 1 },
+                    { f: Freq.Re, d: 1.5, type: 'long' }, { f: Freq.Do, d: 0.5 }, { f: Freq.Do, d: 2, type: 'long' }
+                ]
+            },
+            {
+                name: "小星星 (Twinkle Star)",
+                artist: "Traditional",
+                notes: [
+                    { f: Freq.Do, d: 1 }, { f: Freq.Do, d: 1 }, { f: Freq.Sol, d: 1 }, { f: Freq.Sol, d: 1 },
+                    { f: Freq.La, d: 1 }, { f: Freq.La, d: 1 }, { f: Freq.Sol, d: 2, type: 'long' },
+                    { f: Freq.Fa, d: 1 }, { f: Freq.Fa, d: 1 }, { f: Freq.Mi, d: 1 }, { f: Freq.Mi, d: 1 },
+                    { f: Freq.Re, d: 1 }, { f: Freq.Re, d: 1 }, { f: Freq.Do, d: 2, type: 'long' },
+                    
+                    { f: Freq.Sol, d: 1 }, { f: Freq.Sol, d: 1 }, { f: Freq.Fa, d: 1 }, { f: Freq.Fa, d: 1 },
+                    { f: Freq.Mi, d: 1 }, { f: Freq.Mi, d: 1 }, { f: Freq.Re, d: 2, type: 'long' },
+                    { f: Freq.Sol, d: 1 }, { f: Freq.Sol, d: 1 }, { f: Freq.Fa, d: 1 }, { f: Freq.Fa, d: 1 },
+                    { f: Freq.Mi, d: 1 }, { f: Freq.Mi, d: 1 }, { f: Freq.Re, d: 2, type: 'long' },
+                    
+                    { f: Freq.Do, d: 1 }, { f: Freq.Do, d: 1 }, { f: Freq.Sol, d: 1 }, { f: Freq.Sol, d: 1 },
+                    { f: Freq.La, d: 1 }, { f: Freq.La, d: 1 }, { f: Freq.Sol, d: 2, type: 'long' },
+                    { f: Freq.Fa, d: 1 }, { f: Freq.Fa, d: 1 }, { f: Freq.Mi, d: 1 }, { f: Freq.Mi, d: 1 },
+                    { f: Freq.Re, d: 1 }, { f: Freq.Re, d: 1 }, { f: Freq.Do, d: 2, type: 'long' }
+                ]
+            },
+            {
+                name: "瑪莉有隻小綿羊",
+                artist: "Traditional",
+                notes: [
+                    { f: Freq.Mi, d: 1 }, { f: Freq.Re, d: 1 }, { f: Freq.Do, d: 1 }, { f: Freq.Re, d: 1 },
+                    { f: Freq.Mi, d: 1 }, { f: Freq.Mi, d: 1 }, { f: Freq.Mi, d: 2, type: 'long' },
+                    { f: Freq.Re, d: 1 }, { f: Freq.Re, d: 1 }, { f: Freq.Re, d: 2, type: 'long' },
+                    { f: Freq.Mi, d: 1 }, { f: Freq.Sol, d: 1 }, { f: Freq.Sol, d: 2, type: 'long' },
+                    
+                    { f: Freq.Mi, d: 1 }, { f: Freq.Re, d: 1 }, { f: Freq.Do, d: 1 }, { f: Freq.Re, d: 1 },
+                    { f: Freq.Mi, d: 1 }, { f: Freq.Mi, d: 1 }, { f: Freq.Mi, d: 1 }, { f: Freq.Mi, d: 1 },
+                    { f: Freq.Re, d: 1 }, { f: Freq.Re, d: 1 }, { f: Freq.Mi, d: 1 }, { f: Freq.Re, d: 1 },
+                    { f: Freq.Do, d: 4, type: 'long' }
+                ]
+            },
+            {
+                name: "倫敦鐵橋垮下來",
+                artist: "Traditional",
+                notes: [
+                    { f: Freq.Sol, d: 1.5, type: 'long' }, { f: Freq.La, d: 0.5 }, { f: Freq.Sol, d: 1 }, { f: Freq.Fa, d: 1 },
+                    { f: Freq.Mi, d: 1 }, { f: Freq.Fa, d: 1 }, { f: Freq.Sol, d: 2, type: 'long' },
+                    { f: Freq.Re, d: 1 }, { f: Freq.Mi, d: 1 }, { f: Freq.Fa, d: 2, type: 'long' },
+                    { f: Freq.Mi, d: 1 }, { f: Freq.Fa, d: 1 }, { f: Freq.Sol, d: 2, type: 'long' },
+                    { f: Freq.Sol, d: 1.5, type: 'long' }, { f: Freq.La, d: 0.5 }, { f: Freq.Sol, d: 1 }, { f: Freq.Fa, d: 1 },
+                    { f: Freq.Mi, d: 1 }, { f: Freq.Fa, d: 1 }, { f: Freq.Sol, d: 2, type: 'long' },
+                    { f: Freq.Re, d: 2, type: 'long' }, { f: Freq.Sol, d: 2, type: 'long' },
+                    { f: Freq.Mi, d: 1 }, { f: Freq.Do, d: 3, type: 'long' }
+                ]
+            },
+            {
+                name: "兩隻老虎 (Two Tigers)",
+                artist: "Traditional",
+                notes: [
+                    { f: Freq.Do, d: 1 }, { f: Freq.Re, d: 1 }, { f: Freq.Mi, d: 1 }, { f: Freq.Do, d: 1 },
+                    { f: Freq.Do, d: 1 }, { f: Freq.Re, d: 1 }, { f: Freq.Mi, d: 1 }, { f: Freq.Do, d: 1 },
+                    { f: Freq.Mi, d: 1 }, { f: Freq.Fa, d: 1 }, { f: Freq.Sol, d: 2, type: 'long' },
+                    { f: Freq.Mi, d: 1 }, { f: Freq.Fa, d: 1 }, { f: Freq.Sol, d: 2, type: 'long' },
+                    { f: Freq.Sol, d: 0.5 }, { f: Freq.La, d: 0.5 }, { f: Freq.Sol, d: 0.5 }, { f: Freq.Fa, d: 0.5 }, { f: Freq.Mi, d: 1 }, { f: Freq.Do, d: 1 },
+                    { f: Freq.Sol, d: 0.5 }, { f: Freq.La, d: 0.5 }, { f: Freq.Sol, d: 0.5 }, { f: Freq.Fa, d: 0.5 }, { f: Freq.Mi, d: 1 }, { f: Freq.Do, d: 1 },
+                    { f: Freq.Re, d: 1 }, { f: Freq.LowSol, d: 1 }, { f: Freq.Do, d: 2, type: 'long' },
+                    { f: Freq.Re, d: 1 }, { f: Freq.LowSol, d: 1 }, { f: Freq.Do, d: 2, type: 'long' }
+                ]
+            },
+            // 【修正版：聖誕鈴聲】完全符合圖片樂譜
+            {
+                name: "聖誕鈴聲 (Jingle Bells)",
+                artist: "James Lord Pierpont",
+                notes: [
+                    // 第一段: E E E - E E E - E G C D E - - -
+                    { f: Freq.Mi, d: 1 }, { f: Freq.Mi, d: 1 }, { f: Freq.Mi, d: 2, type: 'long' },
+                    { f: Freq.Mi, d: 1 }, { f: Freq.Mi, d: 1 }, { f: Freq.Mi, d: 2, type: 'long' },
+                    { f: Freq.Mi, d: 1 }, { f: Freq.Sol, d: 1 }, { f: Freq.Do, d: 1.5, type: 'long' }, { f: Freq.Re, d: 0.5 },
+                    { f: Freq.Mi, d: 4, type: 'long' },
+                    
+                    // 第二段: F F F F F E E E E E
+                    { f: Freq.Fa, d: 1 }, { f: Freq.Fa, d: 1 }, { f: Freq.Fa, d: 1.5, type: 'long' }, { f: Freq.Fa, d: 0.5 },
+                    { f: Freq.Fa, d: 1 }, { f: Freq.Mi, d: 1 }, { f: Freq.Mi, d: 1 }, { f: Freq.Mi, d: 0.5 }, { f: Freq.Mi, d: 0.5 },
+                    
+                    // 第三段: E D D E D - G -
+                    { f: Freq.Mi, d: 1 }, { f: Freq.Re, d: 1 }, { f: Freq.Re, d: 1 }, { f: Freq.Mi, d: 1 },
+                    { f: Freq.Re, d: 2, type: 'long' }, { f: Freq.Sol, d: 2, type: 'long' },
+                    
+                    // 第四段 (重複第一段): E E E - E E E - E G C D E - - -
+                    { f: Freq.Mi, d: 1 }, { f: Freq.Mi, d: 1 }, { f: Freq.Mi, d: 2, type: 'long' },
+                    { f: Freq.Mi, d: 1 }, { f: Freq.Mi, d: 1 }, { f: Freq.Mi, d: 2, type: 'long' },
+                    { f: Freq.Mi, d: 1 }, { f: Freq.Sol, d: 1 }, { f: Freq.Do, d: 1.5, type: 'long' }, { f: Freq.Re, d: 0.5 },
+                    { f: Freq.Mi, d: 4, type: 'long' },
+                    
+                    // 第五段 (重複第二段): F F F F F E E E E E
+                    { f: Freq.Fa, d: 1 }, { f: Freq.Fa, d: 1 }, { f: Freq.Fa, d: 1.5, type: 'long' }, { f: Freq.Fa, d: 0.5 },
+                    { f: Freq.Fa, d: 1 }, { f: Freq.Mi, d: 1 }, { f: Freq.Mi, d: 1 }, { f: Freq.Mi, d: 0.5 }, { f: Freq.Mi, d: 0.5 },
+                    
+                    // 第六段 (結尾): G G F D C - - -
+                    { f: Freq.Sol, d: 1 }, { f: Freq.Sol, d: 1 }, { f: Freq.Fa, d: 1 }, { f: Freq.Re, d: 1 },
+                    { f: Freq.Do, d: 4, type: 'long' }
+                ]
+            }
+        ];
+
+        let currentSongNotes = [];
+        let songCursor = 0;
+
+        function initSongMenu() {
+            songSelectionMenu.innerHTML = '';
+            SONGS_DATA.forEach((song, index) => {
+                let btn = document.createElement('div');
+                btn.className = 'song-btn';
+                btn.innerHTML = `
+                    <div class="song-title">${song.name}</div>
+                    <div class="song-artist">${song.artist}</div>
+                `;
+                btn.onclick = () => selectSongAndStart(index);
+                songSelectionMenu.appendChild(btn);
+            });
+        }
+
+        function selectSongAndStart(index) {
+            initAudio(); 
+            currentSongNotes = SONGS_DATA[index].notes;
+            uiLayer.style.display = 'none';
+            resetGame();
+            isGameRunning = true;
+            update();
+        }
+
+        function playPianoNote(freq) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            
+            gain.gain.setValueAtTime(0, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.6, audioCtx.currentTime + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 2.0); 
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 2.0);
+        }
+
+        function playErrorSound() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.3);
+            gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.3);
+        }
+
+        // --- 遊戲邏輯 ---
+        function resetGame() {
+            score = 0;
+            combo = 0;
+            
+            // 【初始速度翻倍】從 5 調為 10
+            baseSpeed = 10;
+            currentSpeed = 10;
+            speedMultiplier = 1;
+            songCursor = 0;
+            
+            // 延後初始生成距離以保留足夠反應時間
+            lastSpawnY = HIT_ZONE_Y - 1200; 
+            
+            currentMilestoneIdx = 0;
+            updateGradeIcons();
+            document.getElementById('grade-bar-fill').style.width = '0%';
+            
+            tiles = [];
+            particles = [];
+            feedbackTexts = [];
+            
+            scoreVal.innerText = score;
+            comboVal.innerText = "";
+            comboVal.classList.remove('combo-active');
+
+            while (lastSpawnY > -1000) {
+                spawnTile();
+            }
+        }
+
+        function spawnTile() {
+            let note = currentSongNotes[songCursor % currentSongNotes.length];
+            let isLong = note.type === 'long';
+            
+            let height = isLong ? (note.d * PIXELS_PER_BEAT) - 20 : SHORT_HEIGHT;
+            
+            let lane;
+            do { lane = Math.floor(Math.random() * LANES); } while (lane === lastLane);
+            lastLane = lane;
+            
+            tiles.push({
+                lane: lane,
+                y: lastSpawnY - height, 
+                height: height,
+                type: isLong ? 'long' : 'short',
+                freq: note.f,
+                isHit: false,
+                isHeld: false,
+                isCompleted: false,
+                isEarlyRelease: false, 
+                scoredTicks: 0
+            });
+            
+            lastSpawnY -= (note.d * PIXELS_PER_BEAT);
+            songCursor++;
+        }
+
+        // --- 處理進度條與等級 ---
+        function updateGrade() {
+            if (currentMilestoneIdx >= 6) {
+                document.getElementById('grade-bar-fill').style.width = '100%';
+                return;
+            }
+
+            let prevScore = currentMilestoneIdx === 0 ? 0 : MILESTONES[currentMilestoneIdx-1].score;
+            let nextScore = MILESTONES[currentMilestoneIdx].score;
+
+            let percent = ((score - prevScore) / (nextScore - prevScore)) * 100;
+            
+            if (percent >= 100) {
+                percent = 100;
+                currentMilestoneIdx++;
+                triggerMilestoneEffect(currentMilestoneIdx);
+                updateGradeIcons();
+                
+                prevScore = MILESTONES[currentMilestoneIdx-1].score;
+                if (currentMilestoneIdx < 6) {
+                    nextScore = MILESTONES[currentMilestoneIdx].score;
+                    percent = ((score - prevScore) / (nextScore - prevScore)) * 100;
+                }
+            }
+            document.getElementById('grade-bar-fill').style.width = percent + '%';
+        }
+
+        function updateGradeIcons() {
+            let icon0 = document.getElementById('icon0');
+            let icon1 = document.getElementById('icon1');
+            let icon2 = document.getElementById('icon2');
+            let barFill = document.getElementById('grade-bar-fill');
+
+            if (currentMilestoneIdx < 3) {
+                icon0.innerText = '⭐'; icon1.innerText = '⭐'; icon2.innerText = '⭐';
+                icon0.className = currentMilestoneIdx >= 1 ? 'grade-icon active' : 'grade-icon';
+                icon1.className = currentMilestoneIdx >= 2 ? 'grade-icon active' : 'grade-icon';
+                icon2.className = currentMilestoneIdx >= 3 ? 'grade-icon active' : 'grade-icon';
+                barFill.style.background = '#00ffcc';
+                barFill.style.boxShadow = '0 0 10px #00ffcc';
+            } else {
+                icon0.innerText = '👑'; icon1.innerText = '👑'; icon2.innerText = '👑';
+                icon0.className = currentMilestoneIdx >= 4 ? 'grade-icon active' : 'grade-icon';
+                icon1.className = currentMilestoneIdx >= 5 ? 'grade-icon active' : 'grade-icon';
+                icon2.className = currentMilestoneIdx >= 6 ? 'grade-icon active' : 'grade-icon';
+                barFill.style.background = '#ff007f'; 
+                barFill.style.boxShadow = '0 0 10px #ff007f';
+            }
+        }
+
+        function triggerMilestoneEffect(idx) {
+            let m = MILESTONES[idx - 1];
+            let num = idx > 3 ? idx - 3 : idx;
+            showFeedback(`${m.symbol} x${num}`, null, canvas.height / 2 - 50, '#fff');
+            
+            if (idx === 3) {
+                setTimeout(() => {
+                    showFeedback("LEVEL CLEARED!", null, canvas.height / 2, '#00ffcc');
+                }, 500);
+            }
+        }
+
+        // --- 輸入處理 ---
+        function handleInput(lane, isDown) {
+            if (!isGameRunning) return;
+
+            if (isDown) {
+                let targetTile = null;
+                for (let i = 0; i < tiles.length; i++) {
+                    if (tiles[i].lane === lane && !tiles[i].isHit && !tiles[i].isCompleted) {
+                        targetTile = tiles[i];
+                        break; 
+                    }
+                }
+
+                if (targetTile) {
+                    let tileBottom = targetTile.y + targetTile.height;
+                    
+                    // 稍微放寬判定區容錯以適應高速 (從 120, 180 放寬至 150, 200)
+                    if (tileBottom >= HIT_ZONE_Y - 150 && tileBottom <= HIT_ZONE_Y + 200) {
+                        targetTile.isHit = true;
+                        playPianoNote(targetTile.freq); 
+                        
+                        if (targetTile.type === 'short') {
+                            targetTile.isCompleted = true;
+                            addScore(10, HIT_ZONE_Y);
+                            createClickEffect(lane, HIT_ZONE_Y);
+                        } else if (targetTile.type === 'long') {
+                            targetTile.isHeld = true;
+                            addScore(5, HIT_ZONE_Y, "GREAT");
+                            createClickEffect(lane, HIT_ZONE_Y);
+                        }
+                    } else {
+                        triggerGameOver("MISS CLICK");
+                    }
+                } else {
+                    triggerGameOver("WRONG TILE");
+                }
+            } else {
+                for (let i = 0; i < tiles.length; i++) {
+                    let t = tiles[i];
+                    if (t.lane === lane && t.isHeld) {
+                        t.isHeld = false;
+                        
+                        if (t.y < HIT_ZONE_Y - 40) {
+                            breakCombo();
+                            showFeedback("EARLY", lane, HIT_ZONE_Y, '#ffaa00');
+                            t.isCompleted = true; 
+                            t.isEarlyRelease = true; 
+                        } else {
+                            t.isCompleted = true;
+                            addScore(15, HIT_ZONE_Y, "PERFECT");
+                        }
+                    }
+                }
+            }
+        }
+
+        // 鍵盤監聽
+        document.addEventListener('keydown', (e) => {
+            let key = e.key.toLowerCase();
+            if (keys.hasOwnProperty(key) && !lanePressed[keys[key]]) {
+                lanePressed[keys[key]] = true;
+                handleInput(keys[key], true);
+            }
+        });
+        document.addEventListener('keyup', (e) => {
+            let key = e.key.toLowerCase();
+            if (keys.hasOwnProperty(key)) {
+                lanePressed[keys[key]] = false;
+                handleInput(keys[key], false);
+            }
+        });
+
+        // 觸控/滑鼠監聽
+        canvas.addEventListener('mousedown', (e) => {
+            if(!isGameRunning) return;
+            const rect = canvas.getBoundingClientRect();
+            const lane = Math.floor((e.clientX - rect.left) / laneWidth);
+            lanePressed[lane] = true;
+            handleInput(lane, true);
+        });
+        canvas.addEventListener('mouseup', (e) => {
+            if(!isGameRunning) return;
+            for(let i=0; i<4; i++) {
+                if(lanePressed[i]) { lanePressed[i] = false; handleInput(i, false); }
+            }
+        });
+        canvas.addEventListener('touchstart', (e) => {
+            if(!isGameRunning) return;
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            for(let i=0; i<e.changedTouches.length; i++) {
+                const lane = Math.floor((e.changedTouches[i].clientX - rect.left) / laneWidth);
+                lanePressed[lane] = true;
+                handleInput(lane, true);
+            }
+        }, {passive: false});
+        canvas.addEventListener('touchend', (e) => {
+            if(!isGameRunning) return;
+            e.preventDefault();
+            for(let i=0; i<4; i++) {
+                if(lanePressed[i]) { lanePressed[i] = false; handleInput(i, false); }
+            }
+        });
+
+        // --- 分數與特效 ---
+        function addScore(points, yPos, text="PERFECT") {
+            combo++;
+            let comboMult = Math.floor(combo / 10) + 1;
+            score += points * comboMult;
+            scoreVal.innerText = score;
+            
+            if (combo > 5) {
+                comboVal.innerText = `COMBO x${combo}`;
+                comboVal.classList.remove('combo-active');
+                void comboVal.offsetWidth; 
+                comboVal.classList.add('combo-active');
+            }
+            showFeedback(text, null, yPos - 50, '#00ffcc');
+            
+            updateGrade(); 
+        }
+
+        function breakCombo() {
+            combo = 0;
+            comboVal.classList.remove('combo-active');
+        }
+
+        function showFeedback(text, lane, y, color) {
+            let x = lane !== null ? (lane * laneWidth + laneWidth / 2) : canvas.width / 2;
+            feedbackTexts.push({ text: text, x: x, y: y, life: 1.0, color: color });
+        }
+
+        function createClickEffect(lane, y) {
+            let x = lane * laneWidth + laneWidth / 2;
+            for (let i = 0; i < 15; i++) {
+                particles.push({
+                    x: x + (Math.random() - 0.5) * laneWidth,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: (Math.random() - 1) * 8,
+                    life: 1.0,
+                    color: i % 2 === 0 ? '#00ffcc' : '#fff'
+                });
+            }
+        }
+
+        // --- 繪圖與更新 ---
+        function update() {
+            if (!isGameRunning) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            for(let i=1; i<LANES; i++) {
+                ctx.moveTo(i * laneWidth, 0);
+                ctx.lineTo(i * laneWidth, canvas.height);
+            }
+            ctx.stroke();
+
+            ctx.fillStyle = 'rgba(0, 255, 204, 0.1)';
+            ctx.fillRect(0, HIT_ZONE_Y, canvas.width, canvas.height - HIT_ZONE_Y);
+            ctx.beginPath();
+            ctx.moveTo(0, HIT_ZONE_Y);
+            ctx.lineTo(canvas.width, HIT_ZONE_Y);
+            ctx.strokeStyle = '#00ffcc';
+            ctx.lineWidth = 3;
+            ctx.shadowColor = '#00ffcc';
+            ctx.shadowBlur = 10;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            for(let i=0; i<LANES; i++) {
+                if (lanePressed[i]) {
+                    let grad = ctx.createLinearGradient(0, HIT_ZONE_Y, 0, canvas.height);
+                    grad.addColorStop(0, 'rgba(0, 255, 204, 0.5)');
+                    grad.addColorStop(1, 'transparent');
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(i * laneWidth, HIT_ZONE_Y, laneWidth, canvas.height - HIT_ZONE_Y);
+                }
+            }
+
+            speedMultiplier += 0.0001; 
+            currentSpeed = baseSpeed * speedMultiplier;
+
+            lastSpawnY += currentSpeed;
+            if (lastSpawnY > -800) {
+                spawnTile();
+            }
+
+            for (let i = tiles.length - 1; i >= 0; i--) {
+                let t = tiles[i];
+                t.y += currentSpeed;
+
+                let tileBottom = t.y + t.height;
+
+                // 容錯檢查放寬
+                if (tileBottom > HIT_ZONE_Y + 180 && !t.isHit) {
+                    triggerGameOver("MISSED TILE");
+                    return;
+                }
+
+                if (t.isHeld) {
+                    t.scoredTicks++;
+                    if (t.scoredTicks % 5 === 0) {
+                        score += 1;
+                        scoreVal.innerText = score;
+                        updateGrade(); 
+                        particles.push({
+                            x: t.lane * laneWidth + laneWidth/2 + (Math.random()-0.5)*30,
+                            y: HIT_ZONE_Y,
+                            vx: (Math.random()-0.5)*4,
+                            vy: (Math.random()-1)*5,
+                            life: 0.5,
+                            color: '#bd00ff'
+                        });
+                    }
+                    if (t.y >= HIT_ZONE_Y) {
+                        t.isHeld = false;
+                        t.isCompleted = true;
+                        addScore(15, HIT_ZONE_Y, "PERFECT");
+                    }
+                }
+
+                if (t.y > canvas.height) {
+                    tiles.splice(i, 1);
+                    continue;
+                }
+
+                if (t.isCompleted && !t.isEarlyRelease) continue; 
+
+                let drawY = t.y;
+                let drawHeight = t.height;
+
+                if (t.isHeld) {
+                    drawHeight = HIT_ZONE_Y - t.y;
+                    drawY = t.y;
+                }
+
+                if (drawHeight > 0) {
+                    if (t.isEarlyRelease) {
+                        ctx.fillStyle = 'rgba(100, 100, 100, 0.4)';
+                        ctx.strokeStyle = 'rgba(150, 150, 150, 0.3)';
+                    } else {
+                        ctx.fillStyle = t.type === 'short' ? '#000' : 'rgba(0,0,0,0.8)';
+                        ctx.strokeStyle = t.type === 'short' ? '#00ffcc' : '#bd00ff';
+                    }
+                    
+                    ctx.fillRect(t.lane * laneWidth + 2, drawY, laneWidth - 4, drawHeight);
+                    
+                    ctx.lineWidth = 2;
+                    ctx.shadowColor = ctx.strokeStyle;
+                    ctx.shadowBlur = t.isEarlyRelease ? 0 : 10;
+                    ctx.strokeRect(t.lane * laneWidth + 2, drawY, laneWidth - 4, drawHeight);
+                    ctx.shadowBlur = 0;
+
+                    if (t.type === 'long' && !t.isEarlyRelease) {
+                        ctx.fillStyle = 'rgba(189, 0, 255, 0.3)';
+                        ctx.fillRect(t.lane * laneWidth + 10, drawY + 10, laneWidth - 20, drawHeight - 20);
+                        
+                        if (!t.isHeld) { 
+                            ctx.beginPath();
+                            ctx.arc(t.lane * laneWidth + laneWidth/2, drawY + drawHeight - 20, 8, 0, Math.PI*2);
+                            ctx.fillStyle = '#fff';
+                            ctx.fill();
+                        }
+                    } else if (t.type === 'short' && !t.isEarlyRelease) {
+                        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                        ctx.fillRect(t.lane * laneWidth + 2, drawY + drawHeight - 15, laneWidth - 4, 15);
+                    }
+                }
+            }
+
+            // 特效更新
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= 0.05;
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                } else {
+                    ctx.globalAlpha = p.life;
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.globalAlpha = 1.0;
+                }
+            }
+
+            for (let i = feedbackTexts.length - 1; i >= 0; i--) {
+                let ft = feedbackTexts[i];
+                ft.y -= 2;
+                ft.life -= 0.03;
+                if (ft.life <= 0) {
+                    feedbackTexts.splice(i, 1);
+                } else {
+                    ctx.globalAlpha = ft.life;
+                    ctx.fillStyle = ft.color;
+                    ctx.font = "bold 20px 'Press Start 2P'";
+                    ctx.textAlign = "center";
+                    ctx.shadowColor = ft.color;
+                    ctx.shadowBlur = 10;
+                    ctx.fillText(ft.text, ft.x, ft.y);
+                    ctx.shadowBlur = 0;
+                    ctx.globalAlpha = 1.0;
+                }
+            }
+
+            animationId = requestAnimationFrame(update);
+        }
+
+        function triggerGameOver(reason) {
+            isGameRunning = false;
+            cancelAnimationFrame(animationId);
+            playErrorSound();
+            
+            canvas.style.transform = 'translate(10px, 10px)';
+            setTimeout(() => canvas.style.transform = 'translate(-10px, -10px)', 50);
+            setTimeout(() => canvas.style.transform = 'translate(0, 0)', 100);
+            
+            uiLayer.style.display = 'flex';
+            titleText.innerHTML = "FAILED";
+            titleText.style.color = "#ff007f";
+            titleText.style.textShadow = "0 0 20px #ff007f";
+            
+            // 計算最終評價文字
+            let rankStr = "";
+            if (currentMilestoneIdx === 0) rankStr = "未達標";
+            else if (currentMilestoneIdx <= 3) rankStr = "⭐".repeat(currentMilestoneIdx);
+            else rankStr = "👑".repeat(currentMilestoneIdx - 3);
+
+            descText.innerText = `${reason}\n\n最終得分: ${score}\n評價: ${rankStr}`;
+            
+            songSelectionMenu.style.display = 'none';
+            gameOverMenu.style.display = 'flex';
+            comboVal.classList.remove('combo-active');
+        }
+
+        function showMainMenu() {
+            uiLayer.style.display = 'flex';
+            titleText.innerHTML = "NEON<br>TILES";
+            titleText.style.color = "#00ffcc";
+            titleText.style.textShadow = "0 0 20px #00ffcc";
+            descText.innerHTML = "使用鍵盤 D, F, J, K 或點擊軌道。<br><br>長按紫色方塊直到結束，<br>點到空白處即刻失敗！";
+            
+            songSelectionMenu.style.display = 'flex';
+            gameOverMenu.style.display = 'none';
+        }
+
+        restartBtn.addEventListener('click', () => {
+            initAudio(); 
+            uiLayer.style.display = 'none';
+            resetGame();
+            isGameRunning = true;
+            update();
+        });
+
+        changeSongBtn.addEventListener('click', () => {
+            showMainMenu();
+        });
+
+        // 初始載入選單
+        initSongMenu();
+        showMainMenu();
+
+    </script>
+</body>
+</html>
