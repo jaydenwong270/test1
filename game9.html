@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AR 虛擬鋼琴 (MediaPipe)</title>
+    <!-- 引入 Tailwind CSS 進行快速排版 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 引入 MediaPipe Hands 相關函式庫 -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        body { margin: 0; padding: 0; background-color: #111; color: white; overflow: hidden; font-family: sans-serif; }
+        canvas { display: block; margin: 0 auto; max-width: 100%; height: auto; box-shadow: 0 0 20px rgba(0, 0, 0, 0.8); }
+        /* 隱藏原始的 video 標籤 */
+        .input_video { display: none; }
+        
+        #overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 50;
+        }
+
+        /* 八度切換提示文字動畫 */
+        .octave-toast {
+            position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 3rem; font-weight: bold; color: #fff; text-shadow: 0 0 20px #00d2ff;
+            pointer-events: none; opacity: 0; transition: opacity 0.2s; z-index: 40;
+        }
+        .show-toast { opacity: 1; animation: popUp 1s ease-out forwards; }
+        
+        @keyframes popUp {
+            0% { transform: translate(-50%, -40%) scale(0.8); opacity: 1; }
+            50% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+            100% { transform: translate(-50%, -60%) scale(1); opacity: 0; }
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center h-screen relative">
+
+    <!-- 啟動畫面 -->
+    <div id="overlay">
+        <h1 class="text-5xl font-bold mb-6 text-blue-400 drop-shadow-lg">AR 虛擬鋼琴 (專業版)</h1>
+        <p class="text-xl mb-4 text-gray-300">包含完整黑白鍵，並支援音域切換</p>
+        <p class="text-md mb-8 text-gray-400">操作提示：舉起手觸碰畫面「左上角/右上角」可切換八度</p>
+        <button id="start-btn" class="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-full font-bold text-2xl transition transform hover:scale-105 shadow-[0_0_15px_rgba(37,99,235,0.5)]">
+            點擊開始 / 允許攝影機
+        </button>
+        <p id="loading-text" class="text-yellow-400 mt-6 font-bold hidden animate-pulse">正在載入 AI 模型與攝影機...</p>
+    </div>
+
+    <!-- UI 資訊 -->
+    <div class="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 bg-black/70 px-6 py-2 rounded-full border border-gray-600 text-center pointer-events-none">
+        <h2 class="text-lg font-bold text-white tracking-widest" id="current-octave-display">目前音域: 第 4 八度 (C4)</h2>
+    </div>
+
+    <!-- 切換八度的視覺提示框 -->
+    <div id="octave-toast" class="octave-toast">八度變更</div>
+
+    <!-- 核心元素 -->
+    <video class="input_video" autoplay playsinline></video>
+    <canvas class="output_canvas" width="1280" height="720"></canvas>
+
+    <script>
+        // --- 1. Web Audio API 音效合成器設定 ---
+        let audioCtx;
+        
+        function initAudio() {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+        }
+
+        function playNote(frequency) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            // 使用正弦波或三角波模擬琴聲
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+            
+            gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0.6, audioCtx.currentTime + 0.05); // Attack
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.2); // Decay
+            
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + 1.2);
+        }
+
+        // --- 2. 虛擬琴鍵與八度管理 ---
+        let currentOctave = 4; // 預設在 C4
+        let lastOctaveChangeTime = 0;
+
+        // 定義標準的 12 半音階 (Octave 4 的基準頻率)
+        const baseNotes = [
+            { note: 'C', freq: 261.63, type: 'white', label: 'Do' },
+            { note: 'C#', freq: 277.18, type: 'black', label: '' },
+            { note: 'D', freq: 293.66, type: 'white', label: 'Re' },
+            { note: 'D#', freq: 311.13, type: 'black', label: '' },
+            { note: 'E', freq: 329.63, type: 'white', label: 'Mi' },
+            { note: 'F', freq: 349.23, type: 'white', label: 'Fa' },
+            { note: 'F#', freq: 369.99, type: 'black', label: '' },
+            { note: 'G', freq: 392.00, type: 'white', label: 'Sol' },
+            { note: 'G#', freq: 415.30, type: 'black', label: '' },
+            { note: 'A', freq: 440.00, type: 'white', label: 'La' },
+            { note: 'A#', freq: 466.16, type: 'black', label: '' },
+            { note: 'B', freq: 493.88, type: 'white', label: 'Ti' },
+            { note: 'C5', freq: 523.25, type: 'white', label: 'Do' } // 第 8 個白鍵
+        ];
+
+        let whiteKeys = [];
+        let blackKeys = [];
+
+        // 虛擬切換按鈕區域 (AR Hologram Buttons)
+        const btnOctaveDown = { x: 30, y: 30, w: 200, h: 100, label: '🔽 降八度' };
+        const btnOctaveUp = { x: 1280 - 230, y: 30, w: 200, h: 100, label: '🔼 升八度' };
+
+        // 根據畫布尺寸計算琴鍵位置
+        function initKeys(canvasWidth, canvasHeight) {
+            whiteKeys = [];
+            blackKeys = [];
+
+            const numWhiteKeys = baseNotes.filter(n => n.type === 'white').length; // 8 個白鍵
+            const whiteKeyWidth = canvasWidth / numWhiteKeys;
+            const whiteKeyHeight = canvasHeight * 0.4; // 佔畫面底部 40%
+            const startY = canvasHeight - whiteKeyHeight;
+
+            let whiteKeyIndex = 0;
+
+            baseNotes.forEach((n) => {
+                if (n.type === 'white') {
+                    whiteKeys.push({
+                        ...n,
+                        x: whiteKeyIndex * whiteKeyWidth,
+                        y: startY,
+                        w: whiteKeyWidth,
+                        h: whiteKeyHeight,
+                        isTouched: false,
+                        wasTouched: false
+                    });
+                    whiteKeyIndex++;
+                } else if (n.type === 'black') {
+                    // 黑鍵位在兩個白鍵中間
+                    const blackKeyWidth = whiteKeyWidth * 0.55;
+                    const blackKeyHeight = whiteKeyHeight * 0.6;
+                    
+                    blackKeys.push({
+                        ...n,
+                        x: (whiteKeyIndex * whiteKeyWidth) - (blackKeyWidth / 2),
+                        y: startY,
+                        w: blackKeyWidth,
+                        h: blackKeyHeight,
+                        isTouched: false,
+                        wasTouched: false
+                    });
+                }
+            });
+        }
+
+        // 顯示切換提示
+        function showOctaveToast(text) {
+            const toast = document.getElementById('octave-toast');
+            const display = document.getElementById('current-octave-display');
+            
+            toast.innerText = text;
+            toast.classList.remove('show-toast');
+            // Trigger reflow to restart animation
+            void toast.offsetWidth; 
+            toast.classList.add('show-toast');
+            
+            display.innerText = `目前音域: 第 ${currentOctave} 八度`;
+        }
+
+        // --- 3. MediaPipe 核心邏輯與繪圖 ---
+        const videoElement = document.querySelector('.input_video');
+        const canvasElement = document.querySelector('.output_canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const overlay = document.getElementById('overlay');
+        const startBtn = document.getElementById('start-btn');
+        const loadingText = document.getElementById('loading-text');
+
+        const TIP_LANDMARKS = [4, 8, 12, 16, 20]; // 指尖
+
+        function onResults(results) {
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+            // 繪製攝影機畫面 (鏡像)
+            canvasCtx.scale(-1, 1);
+            canvasCtx.translate(-canvasElement.width, 0);
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.restore(); 
+
+            // 重置琴鍵觸摸狀態
+            whiteKeys.forEach(k => k.isTouched = false);
+            blackKeys.forEach(k => k.isTouched = false);
+            
+            let btnDownHovered = false;
+            let btnUpHovered = false;
+
+            if (results.multiHandLandmarks) {
+                for (const landmarks of results.multiHandLandmarks) {
+                    
+                    drawConnectors(canvasCtx, getMirroredLandmarks(landmarks), HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
+                    drawLandmarks(canvasCtx, getMirroredLandmarks(landmarks), {color: '#FF0000', lineWidth: 1, radius: 3});
+
+                    // 檢查每個指尖
+                    for (const tipId of TIP_LANDMARKS) {
+                        const tip = landmarks[tipId];
+                        const px = (1 - tip.x) * canvasElement.width;
+                        const py = tip.y * canvasElement.height;
+
+                        drawGlowingPoint(px, py, '#00d2ff');
+
+                        // 1. 偵測八度切換按鈕
+                        if (px >= btnOctaveDown.x && px <= btnOctaveDown.x + btnOctaveDown.w && 
+                            py >= btnOctaveDown.y && py <= btnOctaveDown.y + btnOctaveDown.h) {
+                            btnDownHovered = true;
+                        }
+                        if (px >= btnOctaveUp.x && px <= btnOctaveUp.x + btnOctaveUp.w && 
+                            py >= btnOctaveUp.y && py <= btnOctaveUp.y + btnOctaveUp.h) {
+                            btnUpHovered = true;
+                        }
+
+                        // 2. 偵測鋼琴鍵碰撞 (黑鍵優先)
+                        let hitKey = false;
+                        
+                        // 先檢查黑鍵
+                        for (let k of blackKeys) {
+                            if (px >= k.x && px <= k.x + k.w && py >= k.y && py <= k.y + k.h) {
+                                k.isTouched = true;
+                                hitKey = true;
+                                break; // 該指尖已觸發黑鍵，停止檢查
+                            }
+                        }
+                        
+                        // 如果沒碰到黑鍵，才檢查白鍵
+                        if (!hitKey) {
+                            for (let k of whiteKeys) {
+                                if (px >= k.x && px <= k.x + k.w && py >= k.y && py <= k.y + k.h) {
+                                    k.isTouched = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 處理八度切換邏輯 (加上 1000ms 冷卻時間防抖動)
+            const now = Date.now();
+            if (now - lastOctaveChangeTime > 1000) {
+                if (btnDownHovered && currentOctave > 1) {
+                    currentOctave--;
+                    lastOctaveChangeTime = now;
+                    showOctaveToast(`⬇️ 降至 Octave ${currentOctave}`);
+                } else if (btnUpHovered && currentOctave < 7) {
+                    currentOctave++;
+                    lastOctaveChangeTime = now;
+                    showOctaveToast(`⬆️ 升至 Octave ${currentOctave}`);
+                }
+            }
+
+            // 處理發聲與繪圖
+            // 先畫白鍵
+            whiteKeys.forEach((key) => {
+                processAndDrawKey(key, true);
+            });
+            
+            // 再畫黑鍵 (蓋在白鍵上)
+            blackKeys.forEach((key) => {
+                processAndDrawKey(key, false);
+            });
+
+            // 繪製 AR 虛擬按鈕
+            drawVirtualButton(btnOctaveDown, btnDownHovered);
+            drawVirtualButton(btnOctaveUp, btnUpHovered);
+        }
+
+        // 處理獨立琴鍵的邏輯與繪圖
+        function processAndDrawKey(key, isWhite) {
+            // 觸發音效 (根據當前八度動態計算頻率)
+            if (key.isTouched && !key.wasTouched) {
+                // 頻率公式： freq = baseFreq * 2^(octaveDiff)
+                const finalFreq = key.freq * Math.pow(2, currentOctave - 4);
+                playNote(finalFreq);
+                key.wasTouched = true;
+            } else if (!key.isTouched) {
+                key.wasTouched = false;
+            }
+
+            // 繪製琴鍵
+            canvasCtx.beginPath();
+            if (isWhite) {
+                // 白鍵設計
+                canvasCtx.rect(key.x, key.y, key.w, key.h);
+                if (key.isTouched) {
+                    canvasCtx.fillStyle = '#93c5fd'; // 被按下呈淺藍色
+                    canvasCtx.shadowColor = '#3b82f6';
+                    canvasCtx.shadowBlur = 20;
+                } else {
+                    canvasCtx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                    canvasCtx.shadowBlur = 0;
+                }
+                canvasCtx.fill();
+                canvasCtx.lineWidth = 2;
+                canvasCtx.strokeStyle = '#333';
+                canvasCtx.stroke();
+                
+                // 白鍵標籤
+                canvasCtx.fillStyle = '#333';
+                canvasCtx.font = 'bold 20px Poppins';
+                canvasCtx.textAlign = 'center';
+                canvasCtx.fillText(key.label, key.x + key.w / 2, key.y + key.h - 20);
+                
+            } else {
+                // 黑鍵設計
+                // 為了讓黑鍵立體一點，稍微調整繪製方式
+                canvasCtx.rect(key.x, key.y, key.w, key.h);
+                if (key.isTouched) {
+                    canvasCtx.fillStyle = '#4ade80'; // 被按下呈螢光綠
+                    canvasCtx.shadowColor = '#22c55e';
+                    canvasCtx.shadowBlur = 15;
+                } else {
+                    // 黑鍵漸層效果
+                    let grad = canvasCtx.createLinearGradient(key.x, key.y, key.x + key.w, key.y);
+                    grad.addColorStop(0, '#111');
+                    grad.addColorStop(0.5, '#444');
+                    grad.addColorStop(1, '#111');
+                    canvasCtx.fillStyle = grad;
+                    canvasCtx.shadowBlur = 5;
+                    canvasCtx.shadowColor = 'rgba(0,0,0,0.5)';
+                }
+                canvasCtx.fill();
+                canvasCtx.lineWidth = 1;
+                canvasCtx.strokeStyle = '#000';
+                canvasCtx.stroke();
+            }
+            canvasCtx.shadowBlur = 0; // 歸零
+        }
+
+        // 繪製 AR 虛擬按鈕 (控制八度)
+        function drawVirtualButton(btn, isHovered) {
+            canvasCtx.beginPath();
+            canvasCtx.roundRect(btn.x, btn.y, btn.w, btn.h, 15);
+            
+            if (isHovered) {
+                canvasCtx.fillStyle = 'rgba(59, 130, 246, 0.8)';
+                canvasCtx.strokeStyle = '#60a5fa';
+                canvasCtx.shadowColor = '#60a5fa';
+                canvasCtx.shadowBlur = 20;
+            } else {
+                canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                canvasCtx.strokeStyle = '#4b5563';
+                canvasCtx.shadowBlur = 0;
+            }
+            
+            canvasCtx.fill();
+            canvasCtx.lineWidth = 3;
+            canvasCtx.stroke();
+            
+            canvasCtx.shadowBlur = 0;
+            canvasCtx.fillStyle = '#fff';
+            canvasCtx.font = 'bold 24px Noto Sans TC';
+            canvasCtx.textAlign = 'center';
+            canvasCtx.textBaseline = 'middle';
+            canvasCtx.fillText(btn.label, btn.x + btn.w / 2, btn.y + btn.h / 2);
+        }
+
+        // 解決 Canvas API 沒有原生的 roundRect 問題 (相容性)
+        if (!CanvasRenderingContext2D.prototype.roundRect) {
+            CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+                if (w < 2 * r) r = w / 2;
+                if (h < 2 * r) r = h / 2;
+                this.moveTo(x+r, y);
+                this.arcTo(x+w, y,   x+w, y+h, r);
+                this.arcTo(x+w, y+h, x,   y+h, r);
+                this.arcTo(x,   y+h, x,   y,   r);
+                this.arcTo(x,   y,   x+w, y,   r);
+                return this;
+            }
+        }
+
+        function getMirroredLandmarks(landmarks) {
+            return landmarks.map(lm => ({ x: 1 - lm.x, y: lm.y, z: lm.z }));
+        }
+
+        function drawGlowingPoint(x, y, color) {
+            canvasCtx.beginPath();
+            canvasCtx.arc(x, y, 12, 0, 2 * Math.PI);
+            canvasCtx.fillStyle = color;
+            canvasCtx.shadowColor = color;
+            canvasCtx.shadowBlur = 15;
+            canvasCtx.fill();
+            canvasCtx.shadowBlur = 0;
+        }
+
+        // --- 4. 系統初始化 ---
+        startBtn.addEventListener('click', async () => {
+            startBtn.classList.add('hidden');
+            loadingText.classList.remove('hidden');
+
+            initAudio();
+            const osc = audioCtx.createOscillator();
+            osc.connect(audioCtx.destination);
+            osc.start();
+            osc.stop();
+
+            const hands = new Hands({locateFile: (file) => {
+                return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+            }});
+            
+            hands.setOptions({
+                maxNumHands: 2,
+                modelComplexity: 1,
+                minDetectionConfidence: 0.6,
+                minTrackingConfidence: 0.6
+            });
+            hands.onResults(onResults);
+
+            // 初始化琴鍵尺寸
+            initKeys(canvasElement.width, canvasElement.height);
+
+            const camera = new Camera(videoElement, {
+                onFrame: async () => {
+                    await hands.send({image: videoElement});
+                },
+                width: 1280,
+                height: 720
+            });
+
+            camera.start().then(() => {
+                overlay.style.display = 'none';
+            }).catch(err => {
+                alert('無法啟動攝影機，請確認權限是否開啟！');
+                startBtn.classList.remove('hidden');
+                loadingText.classList.add('hidden');
+            });
+        });
+
+    </script>
+</body>
+</html>
