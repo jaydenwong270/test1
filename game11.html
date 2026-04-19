@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Defender | 星際守衛者</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Poppins:wght@600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #05050a;
+            color: white;
+            font-family: 'Poppins', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 600px;
+            height: 800px;
+            background-color: #0a0a14;
+            border: 4px solid #1f1f2e;
+            border-radius: 12px;
+            box-shadow: 0 0 40px rgba(0, 210, 255, 0.1);
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* --- UI 覆蓋層 (主選單/死亡) --- */
+        .overlay-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(5, 5, 10, 0.85);
+            z-index: 20;
+            backdrop-filter: blur(4px);
+        }
+
+        h1 {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 3rem;
+            color: #00ffcc;
+            text-shadow: 0 0 20px #00ffcc, 0 0 40px #00ffcc;
+            margin-bottom: 20px;
+            text-align: center;
+            line-height: 1.4;
+        }
+
+        p {
+            font-size: 1.2rem;
+            color: #a0a0b0;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        button.btn-primary {
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            font-family: 'Press Start 2P', cursive;
+            color: #fff;
+            background: transparent;
+            border: 3px solid #ff007f;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 15px rgba(255, 0, 127, 0.5), inset 0 0 15px rgba(255, 0, 127, 0.5);
+            text-shadow: 0 0 5px #fff;
+        }
+
+        button.btn-primary:hover {
+            background: #ff007f;
+            box-shadow: 0 0 30px rgba(255, 0, 127, 0.8), inset 0 0 20px rgba(255, 255, 255, 0.5);
+            transform: scale(1.05);
+        }
+
+        /* --- 頂部資訊欄與波數進度條 --- */
+        #hud {
+            position: absolute;
+            top: 0; left: 0; width: 100%;
+            padding: 15px 25px;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            pointer-events: none;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 14px;
+            color: #fff;
+            z-index: 5;
+        }
+
+        .hud-stats {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+
+        .score-text { color: #00ffcc; text-shadow: 0 0 10px #00ffcc; }
+        .lives-text { color: #ff007f; text-shadow: 0 0 10px #ff007f; }
+        .shield-text { color: #0088ff; text-shadow: 0 0 10px #0088ff; margin-right: 15px; }
+        
+        /* 若為 Boss 關卡，波數提示變紅 */
+        .boss-wave-text { color: #ff003c !important; text-shadow: 0 0 15px #ff003c !important; }
+
+        .wave-container {
+            display: flex;
+            align-items: center;
+            width: 100%;
+        }
+        .wave-text {
+            color: #bd00ff;
+            text-shadow: 0 0 10px #bd00ff;
+            margin-right: 15px;
+            white-space: nowrap;
+            transition: color 0.3s, text-shadow 0.3s;
+        }
+        .wave-bar-bg {
+            flex-grow: 1;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 5px;
+            overflow: hidden;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
+        }
+        #wave-bar {
+            height: 100%;
+            width: 0%;
+            background: #bd00ff;
+            box-shadow: 0 0 10px #bd00ff;
+            transition: width 0.3s ease, background-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        /* --- 升級介面 --- */
+        #upgrade-layer {
+            display: none;
+        }
+        .upgrade-cards {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+            justify-content: center;
+            width: 100%;
+            padding: 0 20px;
+            box-sizing: border-box;
+        }
+        .upgrade-card {
+            background: rgba(10, 10, 20, 0.9);
+            border: 2px solid #00ffcc;
+            border-radius: 12px;
+            padding: 15px;
+            width: calc(33.333% - 15px); /* 自動適應寬度 */
+            max-width: 160px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 15px rgba(0, 255, 204, 0.2);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+        }
+        .upgrade-card:hover {
+            background: #00ffcc;
+            color: #000;
+            transform: translateY(-10px);
+            box-shadow: 0 10px 25px rgba(0, 255, 204, 0.6);
+        }
+        .upgrade-card:hover h3, .upgrade-card:hover p {
+            color: #000;
+            text-shadow: none;
+        }
+        .upgrade-icon {
+            font-size: 2.2rem;
+            margin-bottom: 8px;
+        }
+        .upgrade-card h3 {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.7rem;
+            color: #00ffcc;
+            margin-bottom: 8px;
+            line-height: 1.3;
+        }
+        .upgrade-card p {
+            font-size: 0.75rem;
+            color: #ccc;
+            line-height: 1.4;
+            margin: 0;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="hud">
+            <div class="hud-stats">
+                <div class="score-text">SCORE: <span id="scoreVal">0</span></div>
+                <div>
+                    <span class="shield-text" id="shieldDisplay" style="display:none;">🛡️ <span id="shieldVal">0</span></span>
+                    <span class="lives-text">LIVES: <span id="livesVal">3</span></span>
+                </div>
+            </div>
+            <div class="wave-container" id="waveContainer" style="display: none;">
+                <div class="wave-text" id="waveTextTitle">WAVE <span id="waveVal">1</span></div>
+                <div class="wave-bar-bg"><div id="wave-bar"></div></div>
+            </div>
+        </div>
+        
+        <canvas id="gameCanvas" width="600" height="800"></canvas>
+
+        <!-- 主選單 / Game Over -->
+        <div id="ui-layer" class="overlay-layer">
+            <h1 id="titleText">NEON<br>DEFENDER</h1>
+            <p id="descText">滑鼠移動戰機，自動射擊<br>漏掉敵人將會扣除生命！</p>
+            <button id="startBtn" class="btn-primary">START GAME</button>
+        </div>
+
+        <!-- 升級選單 -->
+        <div id="upgrade-layer" class="overlay-layer">
+            <h1 style="font-size: 2.5rem;">WAVE CLEARED!</h1>
+            <p style="color: #fff;">選擇一項能力升級或支援：</p>
+            <div class="upgrade-cards" id="upgradeCards">
+                <!-- 升級選項由 JS 動態生成 -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const uiLayer = document.getElementById('ui-layer');
+        const upgradeLayer = document.getElementById('upgrade-layer');
+        const startBtn = document.getElementById('startBtn');
+        const titleText = document.getElementById('titleText');
+        const descText = document.getElementById('descText');
+        const scoreVal = document.getElementById('scoreVal');
+        const livesVal = document.getElementById('livesVal');
+        const shieldDisplay = document.getElementById('shieldDisplay');
+        const shieldVal = document.getElementById('shieldVal');
+        
+        // 波數 UI
+        const waveContainer = document.getElementById('waveContainer');
+        const waveTextTitle = document.getElementById('waveTextTitle');
+        const waveVal = document.getElementById('waveVal');
+        const waveBar = document.getElementById('wave-bar');
+        const upgradeCardsContainer = document.getElementById('upgradeCards');
+
+        // --- 遊戲變數 ---
+        let animationId;
+        let isGameRunning = false;
+        let score = 0;
+        let lives = 3;
+        let frameCount = 0;
+        
+        // 波數與進度變數
+        let currentWave = 1;
+        let enemiesToSpawn = 0;
+        let enemiesSpawned = 0;
+        let waveProgressCount = 0; 
+        let isBossWave = false;
+
+        // 玩家實體
+        const player = {
+            x: canvas.width / 2,
+            y: canvas.height - 80,
+            width: 40,
+            height: 40,
+            speed: 7,
+            color: '#00ffcc',
+            lastShot: 0,
+            
+            // 永久升級屬性
+            fireRate: 15,     // 越小越快，極限 5
+            bulletSpeed: 15,  // 子彈速度
+            bulletSize: 6,    // 子彈大小(寬度)
+            bulletLevel: 1,   // 發射排數 (無限)
+            shield: 0,        // 護盾數量
+
+            // 限時增益狀態計時器 (Frame count)
+            invincibleTimer: 0,
+            berserkTimer: 0,
+            iFrames: 0        // 受傷或撞Boss後的短暫無敵防連擊
+        };
+
+        // 升級池定義
+        const upgradePool = [
+            { id: 'fireRate', icon: '⚡', name: '射速提升', desc: '永久加快子彈發射頻率' },
+            { id: 'bulletSpeed', icon: '🚀', name: '子彈加速', desc: '永久提升子彈飛行速度' },
+            { id: 'bulletLevel', icon: '💥', name: '扇形多重', desc: '增加子彈發射排數並呈扇形擴散' },
+            { id: 'bulletSize', icon: '☄️', name: '巨型子彈', desc: '永久增大子彈破壞判定' },
+            { id: 'life', icon: '❤️', name: '修復機體', desc: '最大生命值 +1' },
+            { id: 'shield', icon: '🛡️', name: '能量護盾', desc: '獲得一層護盾，可抵擋 1 次傷害' },
+            { id: 'invincible', icon: '🌟', name: '無敵防護', desc: '接下來 10 秒內免疫所有傷害' },
+            { id: 'berserk', icon: '🔥', name: '暴走衝撞', desc: '接下來 10 秒內停止射擊，撞碎敵人得分且不扣血' }
+        ];
+
+        // 陣列管理
+        let bullets = [];
+        let enemies = [];
+        let particles = [];
+        let stars = [];
+
+        // --- 音效系統 (Web Audio API) ---
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+
+        function initAudio() {
+            if (!audioCtx) audioCtx = new AudioCtx();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            const now = audioCtx.currentTime;
+
+            if (type === 'shoot') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.exponentialRampToValueAtTime(300, now + 0.1);
+                gain.gain.setValueAtTime(0.05, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } else if (type === 'explosion') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(100, now);
+                osc.frequency.exponentialRampToValueAtTime(20, now + 0.3);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            } else if (type === 'damage') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.linearRampToValueAtTime(50, now + 0.4);
+                gain.gain.setValueAtTime(0.5, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
+                osc.start(now);
+                osc.stop(now + 0.4);
+            } else if (type === 'shieldHit') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.linearRampToValueAtTime(800, now + 0.2);
+                gain.gain.setValueAtTime(0.6, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+                osc.start(now);
+                osc.stop(now + 0.2);
+            } else if (type === 'bossSpawn') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(50, now);
+                osc.frequency.linearRampToValueAtTime(100, now + 1.5);
+                gain.gain.setValueAtTime(0.8, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 1.5);
+                osc.start(now);
+                osc.stop(now + 1.5);
+            }
+        }
+
+        // --- 初始化邏輯 ---
+        function initStars() {
+            stars = [];
+            for (let i = 0; i < 100; i++) {
+                stars.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    size: Math.random() * 2,
+                    speed: Math.random() * 3 + 0.5
+                });
+            }
+        }
+
+        function resetGame() {
+            score = 0;
+            lives = 3;
+            currentWave = 1;
+            scoreVal.innerText = score;
+            livesVal.innerText = lives;
+            waveContainer.style.display = 'flex';
+            
+            // 重置玩家屬性
+            player.fireRate = 15;
+            player.bulletSpeed = 15;
+            player.bulletSize = 6;
+            player.bulletLevel = 1;
+            player.shield = 0;
+            player.invincibleTimer = 0;
+            player.berserkTimer = 0;
+            player.iFrames = 0;
+            player.x = canvas.width / 2;
+            updateShieldUI();
+
+            initWave();
+            initStars();
+        }
+
+        function initWave() {
+            frameCount = 0;
+            enemiesSpawned = 0;
+            waveProgressCount = 0;
+            isBossWave = (currentWave % 10 === 0);
+
+            if (isBossWave) {
+                enemiesToSpawn = 1; // Boss 戰只有一隻
+                waveTextTitle.classList.add('boss-wave-text');
+                waveBar.style.backgroundColor = '#ff003c';
+                waveBar.style.boxShadow = '0 0 10px #ff003c';
+                playSound('bossSpawn');
+            } else {
+                enemiesToSpawn = 10 + (currentWave * 5); 
+                waveTextTitle.classList.remove('boss-wave-text');
+                waveBar.style.backgroundColor = '#bd00ff';
+                waveBar.style.boxShadow = '0 0 10px #bd00ff';
+            }
+
+            waveVal.innerText = currentWave + (isBossWave ? " (BOSS)" : "");
+            updateWaveBar();
+            
+            bullets = [];
+            enemies = [];
+            particles = [];
+        }
+
+        // --- 控制邏輯 ---
+        let keys = { ArrowLeft: false, ArrowRight: false, a: false, d: false };
+
+        document.addEventListener('keydown', (e) => { if (keys.hasOwnProperty(e.key)) keys[e.key] = true; });
+        document.addEventListener('keyup', (e) => { if (keys.hasOwnProperty(e.key)) keys[e.key] = false; });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!isGameRunning) return;
+            const rect = canvas.getBoundingClientRect();
+            player.x = e.clientX - rect.left;
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            if (!isGameRunning) return;
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            player.x = e.touches[0].clientX - rect.left;
+        }, { passive: false });
+
+        // --- 繪圖與更新函式 ---
+        function updatePlayer() {
+            if (keys.ArrowLeft || keys.a) player.x -= player.speed;
+            if (keys.ArrowRight || keys.d) player.x += player.speed;
+
+            if (player.x < player.width / 2) player.x = player.width / 2;
+            if (player.x > canvas.width - player.width / 2) player.x = canvas.width - player.width / 2;
+
+            // 狀態計時器遞減
+            if (player.invincibleTimer > 0) player.invincibleTimer--;
+            if (player.berserkTimer > 0) player.berserkTimer--;
+            if (player.iFrames > 0) player.iFrames--;
+
+            // 射擊邏輯 (暴走衝撞模式下停止射擊)
+            if (player.berserkTimer <= 0) {
+                player.lastShot++;
+                if (player.lastShot >= player.fireRate) {
+                    shootBullets();
+                    playSound('shoot');
+                    player.lastShot = 0;
+                }
+            }
+
+            // 畫玩家護盾 (如果有)
+            if (player.shield > 0) {
+                ctx.beginPath();
+                ctx.arc(player.x, player.y, 40, 0, Math.PI * 2);
+                ctx.strokeStyle = '#0088ff';
+                ctx.lineWidth = 3;
+                ctx.shadowColor = '#0088ff';
+                ctx.shadowBlur = 15;
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            }
+
+            // 畫玩家戰機
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(player.x, player.y - player.height / 2);
+            ctx.lineTo(player.x + player.width / 2, player.y + player.height / 2);
+            ctx.lineTo(player.x, player.y + player.height / 4);
+            ctx.lineTo(player.x - player.width / 2, player.y + player.height / 2);
+            ctx.closePath();
+            
+            // 依據狀態改變機體顏色
+            if (player.berserkTimer > 0) {
+                ctx.fillStyle = '#ff3300';
+                ctx.shadowColor = '#ff0000';
+                ctx.shadowBlur = 30; // 暴走更亮
+            } else if (player.invincibleTimer > 0) {
+                // 無敵閃爍金光
+                ctx.fillStyle = frameCount % 10 < 5 ? '#ffea00' : '#ffffff';
+                ctx.shadowColor = '#ffea00';
+                ctx.shadowBlur = 25;
+            } else if (player.iFrames > 0) {
+                // 受傷後的短暫閃爍
+                ctx.fillStyle = frameCount % 10 < 5 ? 'transparent' : player.color;
+                ctx.shadowBlur = 0;
+            } else {
+                ctx.fillStyle = player.color;
+                ctx.shadowColor = player.color;
+                ctx.shadowBlur = 20;
+            }
+            
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // 扇形發散射擊邏輯
+        function shootBullets() {
+            const baseAngle = -Math.PI / 2; // 垂直向上 (-90度)
+            const angleStep = 10 * Math.PI / 180; // 每發相差 10 度
+            // 計算起始角度，讓子彈對稱分布
+            const startAngle = baseAngle - ((player.bulletLevel - 1) / 2) * angleStep;
+
+            for (let i = 0; i < player.bulletLevel; i++) {
+                let currentAngle = startAngle + i * angleStep;
+                
+                bullets.push({
+                    x: player.x,
+                    y: player.y - 20,
+                    width: player.bulletSize,
+                    height: player.bulletSize * 3, // 視覺長度隨大小調整
+                    speed: player.bulletSpeed,
+                    dx: Math.cos(currentAngle) * player.bulletSpeed,
+                    dy: Math.sin(currentAngle) * player.bulletSpeed,
+                    color: '#00ffcc',
+                    angle: currentAngle
+                });
+            }
+        }
+
+        function updateStars() {
+            ctx.fillStyle = 'white';
+            // 暴走狀態星星加速，製造衝刺感
+            let starSpeedMult = 1 + (currentWave * 0.1) + (player.berserkTimer > 0 ? 3 : 0);
+            stars.forEach(star => {
+                star.y += star.speed * starSpeedMult;
+                if (star.y > canvas.height) {
+                    star.y = 0;
+                    star.x = Math.random() * canvas.width;
+                }
+                ctx.globalAlpha = star.size / 2;
+                ctx.beginPath();
+                ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+        }
+
+        function spawnEnemy() {
+            if (enemiesSpawned >= enemiesToSpawn) return; 
+
+            // 如果是 Boss 關卡，只生成一隻 Boss
+            if (isBossWave && enemiesSpawned === 0) {
+                enemies.push({
+                    x: canvas.width / 2,
+                    y: -100,
+                    radius: 80,
+                    speed: 0.3 + (currentWave * 0.01), // 移動極慢
+                    hp: 500 * (currentWave / 10),      // 血量極厚
+                    maxHp: 500 * (currentWave / 10),
+                    color: '#ff003c',
+                    angle: 0,
+                    spinSpeed: 0.02,
+                    points: 100, // 基礎分數倍率
+                    isBoss: true
+                });
+                enemiesSpawned++;
+                return;
+            }
+
+            const spawnRate = Math.max(15, 60 - (currentWave * 4));
+            
+            if (frameCount % Math.floor(spawnRate) === 0 && !isBossWave) {
+                const size = Math.random() * 20 + 15;
+                const colors = ['#ff007f', '#bd00ff', '#ff3300', '#ffea00'];
+                
+                let eSpeed = (Math.random() * 2 + 2) * (1 + currentWave * 0.1);
+                let eHp = (size > 25 || Math.random() < currentWave * 0.05) ? 2 : 1;
+                if (currentWave > 5 && size > 30) eHp = 3; 
+
+                enemies.push({
+                    x: Math.random() * (canvas.width - size * 2) + size,
+                    y: -50,
+                    radius: size,
+                    speed: eSpeed,
+                    hp: eHp, 
+                    maxHp: eHp,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    angle: 0,
+                    spinSpeed: (Math.random() - 0.5) * 0.1,
+                    points: Math.floor(size),
+                    isBoss: false
+                });
+                enemiesSpawned++;
+            }
+        }
+
+        function killEnemy(e, index) {
+            createExplosion(e.x, e.y, e.color, e.isBoss ? 100 : 15);
+            playSound('explosion');
+            score += e.points * 10;
+            scoreVal.innerText = score;
+            enemies.splice(index, 1);
+            incrementWaveProgress();
+        }
+
+        function updateEntities() {
+            // 更新子彈
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                let b = bullets[i];
+                b.x += b.dx;
+                b.y += b.dy;
+                
+                ctx.save();
+                ctx.translate(b.x, b.y);
+                ctx.rotate(b.angle + Math.PI/2); // 旋轉繪圖讓矩形朝向運動方向
+                ctx.fillStyle = b.color;
+                ctx.shadowColor = b.color;
+                ctx.shadowBlur = 10;
+                ctx.fillRect(-b.width/2, -b.height/2, b.width, b.height);
+                ctx.restore();
+
+                // 飛出畫面外 (包含左右側)
+                if (b.y < -50 || b.x < -50 || b.x > canvas.width + 50) {
+                    bullets.splice(i, 1);
+                }
+            }
+
+            // 更新敵人
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                let e = enemies[i];
+                e.y += e.speed;
+                e.angle += e.spinSpeed;
+
+                // Boss 左右漂移邏輯
+                if (e.isBoss) {
+                    e.x += Math.sin(frameCount * 0.03) * 3;
+                    if (e.x < e.radius) e.x = e.radius;
+                    if (e.x > canvas.width - e.radius) e.x = canvas.width - e.radius;
+                }
+
+                // 畫敵人
+                ctx.save();
+                ctx.translate(e.x, e.y);
+                ctx.rotate(e.angle);
+                ctx.beginPath();
+                for (let j = 0; j < 6; j++) {
+                    ctx.lineTo(e.radius * Math.cos(j * Math.PI / 3), e.radius * Math.sin(j * Math.PI / 3));
+                }
+                ctx.closePath();
+                ctx.strokeStyle = e.color;
+                ctx.lineWidth = e.isBoss ? 5 : 3;
+                ctx.shadowColor = e.color;
+                ctx.shadowBlur = e.isBoss ? 30 : 15;
+                ctx.stroke();
+                
+                if (e.hp > 1) {
+                    ctx.fillStyle = e.isBoss ? 'rgba(255,0,60,0.3)' : 'rgba(255,255,255,0.2)';
+                    ctx.fill();
+                }
+
+                // Boss 專屬內層裝飾與血條
+                if (e.isBoss) {
+                    ctx.beginPath();
+                    for (let j = 0; j < 6; j++) {
+                        ctx.lineTo((e.radius * 0.6) * Math.cos(-j * Math.PI / 3), (e.radius * 0.6) * Math.sin(-j * Math.PI / 3));
+                    }
+                    ctx.closePath();
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    ctx.restore(); // 提早 restore 以防血條跟著旋轉
+
+                    // Boss 頭頂血條
+                    ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+                    ctx.fillRect(e.x - e.radius, e.y - e.radius - 20, e.radius * 2, 8);
+                    ctx.fillStyle = '#00ffcc';
+                    ctx.fillRect(e.x - e.radius, e.y - e.radius - 20, (e.radius * 2) * Math.max(0, e.hp / e.maxHp), 8);
+                } else {
+                    ctx.restore();
+                }
+
+                // --- 機體碰撞邏輯 (撞擊玩家) ---
+                const distToPlayer = Math.hypot(e.x - player.x, e.y - player.y);
+                if (distToPlayer < e.radius + player.width / 2) {
+                    
+                    if (e.isBoss) {
+                        // 撞到 Boss 的處理
+                        if (player.berserkTimer > 0) {
+                            e.hp -= 2; // 暴走模式對 Boss 持續造成傷害
+                            score += 10;
+                            scoreVal.innerText = score;
+                            createExplosion(player.x, player.y - 20, '#ff3300', 2);
+                            if (e.hp <= 0) {
+                                killEnemy(e, i);
+                            }
+                        } else if (player.invincibleTimer > 0) {
+                            // 無敵模式安全穿透
+                        } else if (player.iFrames <= 0) {
+                            // 正常撞擊，受傷並給予防連擊保護
+                            takeDamage();
+                            player.iFrames = 60; // 1秒無敵
+                        }
+                    } else {
+                        // 撞到普通小兵
+                        if (player.berserkTimer > 0) {
+                            createExplosion(e.x, e.y, '#ff3300', 20);
+                            playSound('explosion');
+                            score += e.points * 20; 
+                            scoreVal.innerText = score;
+                            enemies.splice(i, 1);
+                            incrementWaveProgress();
+                        } else if (player.invincibleTimer > 0) {
+                            createExplosion(e.x, e.y, e.color, 15);
+                            playSound('explosion');
+                            score += e.points * 10;
+                            scoreVal.innerText = score;
+                            enemies.splice(i, 1);
+                            incrementWaveProgress();
+                        } else if (player.iFrames <= 0) {
+                            createExplosion(e.x, e.y, e.color, 30);
+                            createExplosion(player.x, player.y, player.color, 30);
+                            enemies.splice(i, 1);
+                            takeDamage();
+                            player.iFrames = 60;
+                            incrementWaveProgress();
+                        }
+                    }
+                    continue; 
+                }
+
+                // --- 敵人漏掉 (飛出畫面底端) ---
+                if (e.y > canvas.height + e.radius + 50) {
+                    enemies.splice(i, 1);
+                    canvas.style.transform = 'translate(-5px, 0)';
+                    setTimeout(() => canvas.style.transform = 'translate(5px, 0)', 30);
+                    setTimeout(() => canvas.style.transform = 'translate(0, 0)', 60);
+                    
+                    if (e.isBoss) {
+                        takeDamage(); takeDamage(); takeDamage(); // 漏掉 Boss 扣 3 命
+                    } else {
+                        takeDamage(); 
+                    }
+                    incrementWaveProgress();
+                }
+            }
+        }
+
+        function handleCollisions() {
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                let e = enemies[i];
+                for (let j = bullets.length - 1; j >= 0; j--) {
+                    let b = bullets[j];
+                    
+                    const distX = Math.abs(b.x - e.x);
+                    const distY = Math.abs(b.y - e.y);
+                    
+                    if (distX < e.radius + Math.abs(b.width) && distY < e.radius + Math.abs(b.height)) {
+                        e.hp--;
+                        bullets.splice(j, 1); 
+                        
+                        if (e.hp <= 0) {
+                            killEnemy(e, i);
+                        } else {
+                            // 打中但沒死 (Boss 或者高等怪)
+                            createExplosion(b.x, b.y, '#fff', e.isBoss ? 2 : 5);
+                        }
+                        break; 
+                    }
+                }
+            }
+        }
+
+        // --- 進度與升級系統 ---
+        function incrementWaveProgress() {
+            waveProgressCount++;
+            updateWaveBar();
+            
+            if (waveProgressCount >= enemiesToSpawn && enemies.length === 0) {
+                triggerUpgradeScreen();
+            }
+        }
+
+        function updateWaveBar() {
+            let percent = (waveProgressCount / enemiesToSpawn) * 100;
+            if (percent > 100) percent = 100;
+            waveBar.style.width = percent + '%';
+        }
+
+        function triggerUpgradeScreen() {
+            isGameRunning = false; 
+            
+            // 過濾升級池：如果射速已經達標 (<=5)，就不再出現射速選項
+            let availableUpgrades = upgradePool.filter(upg => {
+                if (upg.id === 'fireRate' && player.fireRate <= 5) return false;
+                return true;
+            });
+
+            // 隨機選出 3 個不同的升級選項
+            let shuffled = availableUpgrades.sort(() => 0.5 - Math.random());
+            let selectedUpgrades = shuffled.slice(0, 3);
+            
+            upgradeCardsContainer.innerHTML = '';
+            
+            selectedUpgrades.forEach(upg => {
+                const card = document.createElement('div');
+                card.className = 'upgrade-card';
+                card.innerHTML = `
+                    <div class="upgrade-icon">${upg.icon}</div>
+                    <h3>${upg.name}</h3>
+                    <p>${upg.desc}</p>
+                `;
+                card.onclick = () => applyUpgrade(upg.id);
+                upgradeCardsContainer.appendChild(card);
+            });
+            
+            upgradeLayer.style.display = 'flex';
+        }
+
+        function applyUpgrade(upgradeId) {
+            switch(upgradeId) {
+                case 'fireRate':
+                    player.fireRate = Math.max(5, player.fireRate - 3); 
+                    break;
+                case 'bulletSpeed':
+                    player.bulletSpeed += 4;
+                    break;
+                case 'bulletLevel':
+                    player.bulletLevel += 1; // 無限排數 (扇形擴展)
+                    break;
+                case 'bulletSize':
+                    player.bulletSize += 4;
+                    break;
+                case 'life':
+                    lives++;
+                    livesVal.innerText = lives;
+                    break;
+                case 'shield':
+                    player.shield++;
+                    updateShieldUI();
+                    break;
+                case 'invincible':
+                    player.invincibleTimer = 600; // 10秒 (60fps)
+                    break;
+                case 'berserk':
+                    player.berserkTimer = 600; // 10秒 (60fps)
+                    break;
+            }
+            
+            upgradeLayer.style.display = 'none';
+            currentWave++;
+            initWave();
+            isGameRunning = true;
+        }
+
+        function updateShieldUI() {
+            if (player.shield > 0) {
+                shieldDisplay.style.display = 'inline';
+                shieldVal.innerText = player.shield;
+            } else {
+                shieldDisplay.style.display = 'none';
+            }
+        }
+
+        // --- 粒子爆炸特效 ---
+        function createExplosion(x, y, color, amount) {
+            for (let i = 0; i < amount; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 10,
+                    vy: (Math.random() - 0.5) * 10,
+                    life: 1.0, 
+                    color: color,
+                    size: Math.random() * 4 + 1
+                });
+            }
+        }
+
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= 0.03; 
+
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                } else {
+                    ctx.globalAlpha = p.life;
+                    ctx.fillStyle = p.color;
+                    ctx.shadowColor = p.color;
+                    ctx.shadowBlur = 10;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                    ctx.globalAlpha = 1;
+                }
+            }
+        }
+
+        // --- 遊戲狀態管理 ---
+        function takeDamage() {
+            // 如果有護盾，優先扣除護盾
+            if (player.shield > 0) {
+                player.shield--;
+                updateShieldUI();
+                playSound('shieldHit');
+                createExplosion(player.x, player.y, '#0088ff', 20);
+                return; 
+            }
+
+            lives--;
+            livesVal.innerText = lives;
+            playSound('damage');
+            
+            // 大扣血震動
+            canvas.style.transform = 'translate(15px, 15px)';
+            setTimeout(() => canvas.style.transform = 'translate(-15px, -15px)', 50);
+            setTimeout(() => canvas.style.transform = 'translate(0, 0)', 100);
+
+            if (lives <= 0) {
+                gameOver();
+            }
+        }
+
+        function update() {
+            if (!isGameRunning) {
+                animationId = requestAnimationFrame(update);
+                return; 
+            }
+
+            frameCount++;
+            
+            ctx.fillStyle = 'rgba(10, 10, 20, 0.4)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            updateStars();
+            spawnEnemy();
+            updatePlayer();
+            updateEntities();
+            handleCollisions();
+            updateParticles();
+
+            animationId = requestAnimationFrame(update);
+        }
+
+        function gameOver() {
+            isGameRunning = false;
+            cancelAnimationFrame(animationId);
+            
+            uiLayer.style.display = 'flex';
+            titleText.innerHTML = "MISSION<br>FAILED";
+            titleText.style.color = "#ff007f";
+            titleText.style.textShadow = "0 0 20px #ff007f";
+            descText.innerText = `最終得分: ${score} | 抵達波數: ${currentWave}`;
+            startBtn.innerText = "TRY AGAIN";
+            waveContainer.style.display = 'none';
+        }
+
+        startBtn.addEventListener('click', () => {
+            initAudio(); 
+            uiLayer.style.display = 'none';
+            resetGame();
+            isGameRunning = true;
+            if(!animationId) update();
+        });
+
+    </script>
+</body>
+</html>
